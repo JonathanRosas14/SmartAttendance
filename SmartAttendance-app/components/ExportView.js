@@ -521,25 +521,6 @@ export default function ExportView({ navigation, route }) {
           </View>
         </TouchableOpacity>
       </Modal>
-
-      {/* ── BOTTOM NAVIGATION ─────────────────────────────────────────── */}
-      <View style={styles.navBar}>
-        {NAV_TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={styles.navItem}
-            onPress={() => handleTabPress(tab.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.navIcon, activeTab === tab.id && styles.navIconActive]}>
-              {tab.icon}
-            </Text>
-            <Text style={[styles.navLabel, activeTab === tab.id && styles.navLabelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
     </SafeAreaView>
   );
 }
@@ -550,7 +531,6 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollView: {
     flex: 1,
@@ -818,6 +798,10 @@ const styles = StyleSheet.create({
 
   // Bottom nav
   navBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
     flexDirection: "row",
     backgroundColor: COLORS.white,
     borderTopWidth: 1, borderTopColor: COLORS.navBorder,
