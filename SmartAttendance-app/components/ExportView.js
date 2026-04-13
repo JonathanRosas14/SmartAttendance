@@ -22,7 +22,10 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
+  Image
 } from "react-native";
+
+import chart from "../assets/icons/chart.png";
 
 // ✅ IMPORTAR EXPO FILE SYSTEM Y SHARING
 import * as FileSystem from 'expo-file-system';
@@ -36,6 +39,14 @@ import {
   calcularAsistenciaPorClase,
   obtenerTodosEstudiantes,
 } from "../controllers/asistenciaController";
+
+import {
+  exportarAsistenciaExcel,
+  exportarAsistenciaPorSesion,
+} from "../utils/exportExcel";
+
+// Para acceder a los datos de asistencia
+import { asistencias } from "../models/clases";
 
 // ─── Paleta de colores ────────────────────────────────────────────────────────
 const COLORS = {
@@ -54,22 +65,6 @@ const COLORS = {
   red:        "#DC2626",
 };
 
-// ─── Tabs de navegación ───────────────────────────────────────────────────────
-const NAV_TABS = [
-  { id: "classes",  label: "CLASSES",  icon: "📚" },
-  { id: "students", label: "STUDENTS", icon: "👥" },
-  { id: "qrscan",   label: "QR SCAN",  icon: "⊞"  },
-  { id: "manual",   label: "MANUAL",   icon: "📋" },
-  { id: "export",   label: "EXPORT",   icon: "↑"  },
-];
-
-const ROUTES = {
-  classes:  "ProfesorView",
-  students: "EstudianteView",
-  qrscan:   "QRView",
-  manual:   "ManualView",
-  export:   null,
-};
 
 /** Formatea una fecha "YYYY-MM-DD" → "Oct 24, 2023" */
 function formatearFecha(fechaStr = "") {
@@ -86,7 +81,8 @@ function formatearFecha(fechaStr = "") {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ExportView({ navigation, route }) {
+export default function ExportView({ setPantalla, onLogout }) {
+  const [menuVisible, setMenuVisible] = useState(false);
 
   // ── Clases ────────────────────────────────────────────────────────────────
   const [clases, setClases] = useState(() => obtenerClases());
@@ -154,7 +150,7 @@ export default function ExportView({ navigation, route }) {
     // Los datos se actualizarán automáticamente por el useEffect
   };
 
-  // ✅✅✅ EXPORTAR A CSV - IMPLEMENTACIÓN COMPLETA
+  // ✅✅✅ EXPORTAR A EXCEL - NUEVA IMPLEMENTACIÓN SIMPLIFICADA
   const handleExportar = async () => {
     console.log('📤 Iniciando exportación...');
     
@@ -175,21 +171,30 @@ export default function ExportView({ navigation, route }) {
     try {
       setCargando(true);
       
-      // 1. Preparar datos para CSV
-      const datosCSV = prepararDatosCSV();
+      // Obtener datos necesarios
+      const estudiantesClase = obtenerEstudiantesPorClase(claseSeleccionadaId);
+      const asistenciasClase = asistencias.filter(
+        (a) => a.claseId === claseSeleccionadaId
+      );
       
-      // 2. Generar archivo CSV
-      const fileUri = await generarArchivoCSV(datosCSV);
-      
-      // 3. Compartir archivo
-      await compartirArchivo(fileUri);
-      
+      // Llamar a la función de exportación
+      const resultado = await exportarAsistenciaExcel(
+        claseSeleccionadaId,
+        claseSeleccionada?.nombre || "Asistencia",
+        estudiantesClase,
+        asistenciasClase
+      );
+
       setCargando(false);
       
-      Alert.alert(
-        "✅ Exportado", 
-        `Archivo "${claseSeleccionada?.nombre || 'asistencias'}.csv" generado correctamente.`
-      );
+      if (resultado.ok) {
+        Alert.alert(
+          "✅ Exportado", 
+          "Asistencia exportada correctamente a Excel"
+        );
+      } else {
+        Alert.alert("Error", resultado.mensaje);
+      }
       
     } catch (error) {
       console.error('❌ Error al exportar:', error);
@@ -198,95 +203,51 @@ export default function ExportView({ navigation, route }) {
     }
   };
 
-  // Preparar datos en formato CSV
-  const prepararDatosCSV = () => {
-    const claseNombre = claseSeleccionada?.nombre || "Sin Clase";
+  // ✅ EXPORTAR POR SESIÓN (Detallado)
+  const handleExportarDetallado = async () => {
+    console.log('📊 Exportando detallado por sesión...');
     
-    // Encabezados
-    let csv = "Nombre del Estudiante,ID Estudiante,Clase,Fecha,Estado\n";
-    
-    // Obtener estudiantes de esta clase
-    const estudiantesClase = obtenerEstudiantesPorClase(claseSeleccionadaId);
-    
-    // Para cada sesión (fecha), crear una fila por estudiante
-    sesiones.forEach(sesion => {
-      const fecha = sesion.fecha;
-      const fechaFormateada = formatearFecha(fecha);
+    if (!claseSeleccionadaId) {
+      Alert.alert("Error", "Selecciona una clase primero.");
+      return;
+    }
+
+    if (sesiones.length === 0) {
+      Alert.alert("Sin datos", "No hay sesiones para exportar.");
+      return;
+    }
+
+    try {
+      setCargando(true);
       
-      estudiantesClase.forEach(est => {
-        // Verificar si el estudiante asistió en esta fecha
-        const asistio = verificarAsistencia(est.id, fecha);
-        const estado = asistio ? "Asistió" : "No asistió";
-        
-        csv += `"${est.nombre}","${est.id}","${claseNombre}","${fechaFormateada}","${estado}"\n`;
-      });
-    });
-    
-    // Si no hay sesiones con estudiantes, exportar al menos las estadísticas
-    if (sesiones.length === 0 || estudiantesClase.length === 0) {
-      estadisticas.forEach(stat => {
-        csv += `"${stat.nombre}","${stat.id}","${claseNombre}","General","${stat.porcentaje}% de asistencia"\n`;
-      });
-    }
-    
-    return csv;
-  };
+      const estudiantesClase = obtenerEstudiantesPorClase(claseSeleccionadaId);
+      const asistenciasClase = asistencias.filter(
+        (a) => a.claseId === claseSeleccionadaId
+      );
+      
+      const resultado = await exportarAsistenciaPorSesion(
+        claseSeleccionada?.nombre || "Asistencia",
+        sesiones,
+        estudiantesClase,
+        asistenciasClase
+      );
 
-  // Verificar si un estudiante asistió en una fecha específica
-  const verificarAsistencia = (estudianteId, fecha) => {
-    // Importar asistencias del modelo (necesitamos acceder a los datos)
-    const { asistencias } = require("../models/clases");
-    
-    return asistencias.some(a => 
-      a.estudianteId === estudianteId && 
-      a.claseId === claseSeleccionadaId && 
-      a.fecha === fecha
-    );
-  };
-
-  // Generar archivo CSV físico
-  const generarArchivoCSV = async (contenidoCSV) => {
-    const nombreArchivo = `asistencias_${claseSeleccionada?.nombre || 'clase'}_${new Date().toISOString().split('T')[0]}.csv`;
-    
-    if (Platform.OS === 'web') {
-      // En web, crear blob y descargar
-      const blob = new Blob([contenidoCSV], { type: 'text/csv;charset=utf-8;' });
-      const link = document.createElement("a");
-      const url = URL.createObjectURL(blob);
-      link.setAttribute("href", url);
-      link.setAttribute("download", nombreArchivo);
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
-      return url;
-    } else {
-      // En móvil, usar expo-file-system
-      const fileUri = FileSystem.documentDirectory + nombreArchivo;
-      await FileSystem.writeAsStringAsync(fileUri, contenidoCSV, {
-        encoding: FileSystem.EncodingType.UTF8
-      });
-      return fileUri;
+      setCargando(false);
+      
+      if (resultado.ok) {
+        Alert.alert(
+          "✅ Exportado", 
+          "Asistencia detallada exportada correctamente"
+        );
+      } else {
+        Alert.alert("Error", resultado.mensaje);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error:', error);
+      setCargando(false);
+      Alert.alert("Error", error.message);
     }
-  };
-
-  // Compartir archivo
-  const compartirArchivo = async (fileUri) => {
-    if (Platform.OS === 'web') {
-      // En web ya se descargó automáticamente
-      return;
-    }
-    
-    // En móvil, usar expo-sharing
-    if (!(await Sharing.isAvailableAsync())) {
-      Alert.alert("Error", "La funcionalidad de compartir no está disponible");
-      return;
-    }
-    
-    await Sharing.shareAsync(fileUri, {
-      mimeType: 'text/csv',
-      dialogTitle: 'Exportar asistencias',
-      UTI: 'public.comma-separated-values-text' // iOS
-    });
   };
 
   // ── Ver todas las sesiones ────────────────────────────────────────────────
@@ -361,7 +322,11 @@ export default function ExportView({ navigation, route }) {
 
       {/* ── HEADER ────────────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuBtn} accessibilityLabel="Menú">
+        <TouchableOpacity 
+          style={styles.menuBtn} 
+          accessibilityLabel="Menú"
+          onPress={() => setMenuVisible(!menuVisible)}
+        >
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>SmartAttendance</Text>
@@ -369,6 +334,22 @@ export default function ExportView({ navigation, route }) {
           <Text style={styles.avatarWrapText}>👤</Text>
         </View>
       </View>
+
+      {/* Menú desplegable */}
+      {menuVisible && (
+        <View style={styles.menuDropdown}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setMenuVisible(false);
+              if (onLogout) onLogout();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.menuItemText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
       <ScrollView
@@ -410,7 +391,7 @@ export default function ExportView({ navigation, route }) {
 
           {sesiones.length === 0 ? (
             <View style={styles.emptyState}>
-              <Text style={styles.emptyIcon}>📊</Text>
+              <Image source={chart} style={{ width: 64, height: 64, marginBottom: 12, tintColor: COLORS.textMuted }} />
               <Text style={styles.emptyText}>
                 {claseSeleccionada
                   ? "No hay sesiones registradas para esta clase.\n\nRegistra asistencia desde ManualView o QR."
@@ -460,18 +441,29 @@ export default function ExportView({ navigation, route }) {
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* ── BOTÓN EXPORTAR A CSV ──────── */}
+      {/* ── BOTÓN EXPORTAR A EXCEL (DOS OPCIONES) ──────── */}
       <View style={styles.exportWrap}>
         <TouchableOpacity
           style={[styles.btnExportar, sesiones.length === 0 && styles.btnExportarDisabled]}
           onPress={handleExportar}
           activeOpacity={0.85}
           disabled={sesiones.length === 0 || cargando}
-          accessibilityLabel="Exportar a CSV"
+          accessibilityLabel="Exportar a Excel básico"
         >
-          <Text style={styles.btnExportarIcon}>⬆</Text>
           <Text style={styles.btnExportarText}>
-            {cargando ? "GENERANDO..." : sesiones.length === 0 ? "SIN DATOS PARA EXPORTAR" : "EXPORTAR A CSV"}
+            {cargando ? "GENERANDO..." : sesiones.length === 0 ? "SIN DATOS" : "EXPORTAR EXCEL"}
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={[styles.btnExportar, styles.btnExportarSecondary, sesiones.length === 0 && styles.btnExportarDisabled]}
+          onPress={handleExportarDetallado}
+          activeOpacity={0.85}
+          disabled={sesiones.length === 0 || cargando}
+          accessibilityLabel="Exportar Excel detallado"
+        >
+          <Text style={styles.btnExportarText}>
+            {cargando ? "GENERANDO..." : "DETALLADO"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -531,6 +523,7 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
+    position: 'relative',
   },
   scrollView: {
     flex: 1,
@@ -539,7 +532,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 180,
   },
 
   // Header
@@ -565,6 +558,35 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   avatarWrapText: { fontSize: 20 },
+
+  // Menú desplegable
+  menuDropdown: {
+    position: "absolute",
+    top: 48,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.navBorder,
+    zIndex: 100,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  menuItemIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.text,
+  },
 
   // Título
   panelTitle: {
@@ -738,7 +760,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingVertical: 30,
   },
-  emptyIcon: { fontSize: 34, marginBottom: 10 },
   emptyText: {
     fontSize: 13, color: COLORS.textMuted,
     textAlign: "center", paddingHorizontal: 20,
@@ -748,8 +769,17 @@ const styles = StyleSheet.create({
   // Botón exportar
   exportWrap: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingBottom: 70,
     backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.navBorder,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
+    gap: 10,
   },
   btnExportar: {
     backgroundColor: COLORS.primary,
@@ -760,11 +790,13 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
   },
+  btnExportarSecondary: {
+    backgroundColor: COLORS.accent,
+  },
   btnExportarDisabled: {
     backgroundColor: COLORS.textMuted,
     opacity: 0.6,
   },
-  btnExportarIcon: { fontSize: 16, color: COLORS.white },
   btnExportarText: {
     color: COLORS.white, fontWeight: "700",
     fontSize: 14, letterSpacing: 1.5,

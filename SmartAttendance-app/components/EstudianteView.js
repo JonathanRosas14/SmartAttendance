@@ -6,18 +6,16 @@
      *  - Seleccionar clase (dropdown)
      *  - Vincular nuevo estudiante (nombre, ID, teléfono)
      *  - Listar estudiantes vinculados a la clase seleccionada
-     *  - Ver todos los estudiantes
      *
      * Conexión al backend:
-     *  - obtenerClases            → lista de clases para el selector
+     *  - obtenerClases            → lista de clases para elSelector
      *  - agregarEstudiante        → vincular estudiante a clase
      *  - obtenerEstudiantesPorClase → lista de estudiantes de la clase
-     *  - obtenerTodosEstudiantes  → para "Ver todos los estudiantes"
      *  - borrarEstudiante         → eliminar estudiante
      *  - editarEstudiante         → editar estudiante
      */
 
-    import React, { useState, useCallback } from "react";
+    import React, { useState, useCallback, useEffect } from "react";
     import {
     View,
     Text,
@@ -31,13 +29,16 @@
     StatusBar,
     SafeAreaView,
     Modal,
+    Image
     } from "react-native";
+
+    import trash from "../assets/icons/trash.png";
+    import user from "../assets/icons/user.png";
 
     import {
     obtenerClases,
     agregarEstudiante,
     obtenerEstudiantesPorClase,
-    obtenerTodosEstudiantes,
     borrarEstudiante,
     } from "../controllers/asistenciaController";
 
@@ -82,14 +83,127 @@
     return AVATAR_COLORS[sum % AVATAR_COLORS.length];
     }
 
-    // ─── Tabs de navegación (igual que ProfesorView) ──────────────────────────────
-    const NAV_TABS = [
-    { id: "classes",  label: "CLASSES",  icon: "❏" },
-    { id: "students", label: "STUDENTS", icon: "👥" },
-    { id: "qrscan",   label: "QR SCAN",  icon: "⊞"  },
-    { id: "manual",   label: "MANUAL",   icon: "📋" },
-    { id: "export",   label: "EXPORT",   icon: "↑"  },
-    ];
+    // ✅ MODAL DE CONFIRMACIÓN PERSONALIZADA PARA ELIMINAR ESTUDIANTE
+    function ConfirmDeleteStudentModal({ visible, studentNombre, onConfirm, onCancel }) {
+      return (
+        <Modal
+          transparent={true}
+          animationType="fade"
+          visible={visible}
+          onRequestClose={onCancel}
+        >
+          <View style={deleteModalStyles.overlay}>
+            <View style={deleteModalStyles.container}>
+              <View style={deleteModalStyles.iconContainer}>
+                <Image source={trash} style={{ height: 28, width: 28 }} />
+              </View>
+              
+              <Text style={deleteModalStyles.title}>Eliminar estudiante</Text>
+              <Text style={deleteModalStyles.message}>
+                ¿Seguro que deseas eliminar{"\n"}
+                <Text style={deleteModalStyles.studentNombre}>"{studentNombre}"</Text>?
+              </Text>
+              <Text style={deleteModalStyles.warning}>
+                Esta acción no se puede deshacer.
+              </Text>
+
+              <View style={deleteModalStyles.buttonsRow}>
+                <TouchableOpacity style={deleteModalStyles.btnCancel} onPress={onCancel}>
+                  <Text style={deleteModalStyles.btnCancelText}>Cancelar</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={deleteModalStyles.btnConfirm} onPress={onConfirm}>
+                  <Text style={deleteModalStyles.btnConfirmText}>Eliminar</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      );
+    }
+
+    const deleteModalStyles = StyleSheet.create({
+      overlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.6)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 20,
+      },
+      container: {
+        backgroundColor: COLORS.white,
+        borderRadius: 20,
+        padding: 24,
+        width: '100%',
+        maxWidth: 320,
+        alignItems: 'center',
+        shadowColor: "#000",
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.3,
+        shadowRadius: 8,
+        elevation: 10,
+      },
+      iconContainer: {
+        width: 60,
+        height: 60,
+        borderRadius: 30,
+        justifyContent: 'center',
+        alignItems: 'center',
+        marginBottom: 16,
+      },
+      title: {
+        fontSize: 20,
+        fontWeight: '700',
+        color: COLORS.text,
+        marginBottom: 12,
+      },
+      message: {
+        fontSize: 15,
+        color: COLORS.textMuted,
+        textAlign: 'center',
+        lineHeight: 22,
+        marginBottom: 8,
+      },
+      studentNombre: {
+        fontWeight: '700',
+        color: COLORS.text,
+      },
+      warning: {
+        fontSize: 13,
+        color: COLORS.error,
+        textAlign: 'center',
+        marginBottom: 24,
+      },
+      buttonsRow: {
+        flexDirection: 'row',
+        width: '100%',
+        gap: 12,
+      },
+      btnCancel: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: COLORS.inputBg,
+        alignItems: 'center',
+      },
+      btnCancelText: {
+        color: COLORS.textMuted,
+        fontWeight: '600',
+        fontSize: 15,
+      },
+      btnConfirm: {
+        flex: 1,
+        paddingVertical: 14,
+        borderRadius: 12,
+        backgroundColor: COLORS.error,
+        alignItems: 'center',
+      },
+      btnConfirmText: {
+        color: COLORS.white,
+        fontWeight: '700',
+        fontSize: 15,
+      },
+    });
+
 
     const ROUTES = {
     classes:  "ProfesorView",
@@ -100,7 +214,8 @@
     };
 
     // ─── Componente principal ─────────────────────────────────────────────────────
-    export default function EstudianteView({ navigation }) {
+    export default function EstudianteView({ setPantalla, onLogout }) {
+      const [menuVisible, setMenuVisible] = useState(false);
 
     // ── Clases disponibles ────────────────────────────────────────────────────
     const [clases, setClases] = useState(() => obtenerClases());
@@ -117,7 +232,6 @@
     const [celular,  setCelular]  = useState("");
 
     // ── Lista de estudiantes ──────────────────────────────────────────────────
-    const [verTodos, setVerTodos] = useState(false);
     const [estudiantes, setEstudiantes] = useState(() =>
         claseSeleccionada
         ? obtenerEstudiantesPorClase(claseSeleccionada.id)
@@ -126,21 +240,23 @@
 
     // ── Refrescar lista ───────────────────────────────────────────────────────
     const refreshEstudiantes = useCallback((claseId) => {
-        if (verTodos) {
-        setEstudiantes([...obtenerTodosEstudiantes()]);
-        } else {
         setEstudiantes(claseId
             ? [...obtenerEstudiantesPorClase(claseId)]
             : []
         );
+    }, []);
+
+    // ── useEffect para actualizar cuando cambia la clase ─────────────────────
+    useEffect(() => {
+        if (claseSeleccionada?.id) {
+            refreshEstudiantes(claseSeleccionada.id);
         }
-    }, [verTodos]);
+    }, [claseSeleccionada?.id, refreshEstudiantes]);
 
     // ── Seleccionar clase desde el dropdown ───────────────────────────────────
     const handleSeleccionarClase = (clase) => {
         setClaseSeleccionada(clase);
         setDropdownVisible(false);
-        setVerTodos(false);
         setEstudiantes([...obtenerEstudiantesPorClase(clase.id)]);
     };
 
@@ -175,32 +291,35 @@
 
     // ── Eliminar estudiante ───────────────────────────────────────────────────
     const handleEliminar = (id, nombreEst) => {
-        Alert.alert(
-        "Eliminar estudiante",
-        `¿Seguro que deseas eliminar a "${nombreEst}"?`,
-        [
-            { text: "Cancelar", style: "cancel" },
-            {
-            text: "Eliminar",
-            style: "destructive",
-            onPress: () => {
-                const res = borrarEstudiante(id);
-                if (res.ok) {
-                refreshEstudiantes(claseSeleccionada?.id);
-                } else {
-                Alert.alert("Error", res.mensaje);
-                }
-            },
-            },
-        ]
-        );
+        setStudentAEliminar({ id, nombre: nombreEst });
+        setConfirmModalVisible(true);
     };
 
-    // ── Ver todos / filtrar por clase ─────────────────────────────────────────
-    const handleVerTodos = () => {
-        setVerTodos(true);
-        setEstudiantes([...obtenerTodosEstudiantes()]);
+    // ✅ EJECUTAR ELIMINACIÓN DESPUÉS DE CONFIRMAR
+    const ejecutarEliminacion = () => {
+        if (!studentAEliminar) return;
+
+        const { id, nombre } = studentAEliminar;
+        const resultado = borrarEstudiante(id);
+
+        if (resultado.ok) {
+            setEstudiantes(prevEstudiantes => prevEstudiantes.filter(est => est.id !== id));
+            setConfirmModalVisible(false);
+            setStudentAEliminar(null);
+        } else {
+            Alert.alert("Error", resultado.mensaje || "No se pudo eliminar el estudiante");
+        }
     };
+
+    // ── Cancelar eliminación ───────────────────────────────────────────────────
+    const cancelarEliminacion = () => {
+        setConfirmModalVisible(false);
+        setStudentAEliminar(null);
+    };
+
+    // ── ESTADOS PARA MODAL DE CONFIRMACIÓN DE ELIMINACIÓN ──────────────────────
+    const [confirmModalVisible, setConfirmModalVisible] = useState(false);
+    const [studentAEliminar, setStudentAEliminar] = useState(null);
 
     // ── Navegación inferior ───────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState("students");
@@ -242,7 +361,7 @@
             activeOpacity={0.7}
             accessibilityLabel={`Eliminar ${item.nombre}`}
             >
-            <Text style={styles.actionIcon}>🗑️</Text>
+            <Image source={trash} style={{ width: 20, height: 20   }} />
             </TouchableOpacity>
         </View>
         );
@@ -257,7 +376,11 @@
 
         {/* ── HEADER ────────────────────────────────────────────────────── */}
         <View style={styles.header}>
-            <TouchableOpacity style={styles.menuBtn} accessibilityLabel="Menú">
+            <TouchableOpacity 
+              style={styles.menuBtn} 
+              accessibilityLabel="Menú"
+              onPress={() => setMenuVisible(!menuVisible)}
+            >
             <Text style={styles.menuIcon}>☰</Text>
             </TouchableOpacity>
             <Text style={styles.headerTitle}>SmartAttendance</Text>
@@ -265,6 +388,22 @@
             <Text style={styles.avatarWrapText}>👤</Text>
             </View>
         </View>
+
+        {/* Menú desplegable */}
+        {menuVisible && (
+          <View style={styles.menuDropdown}>
+            <TouchableOpacity
+              style={styles.menuItem}
+              onPress={() => {
+                setMenuVisible(false);
+                if (onLogout) onLogout();
+              }}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.menuItemText}>Cerrar sesión</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
         <ScrollView
@@ -332,14 +471,14 @@
                 activeOpacity={0.85}
                 accessibilityLabel="Vincular estudiante"
             >
-                <Text style={styles.btnVincularText}>VINCULAR ESTUDIANTE  🔗</Text>
+                <Text style={styles.btnVincularText}>VINCULAR ESTUDIANTE</Text>
             </TouchableOpacity>
             </View>
 
             {/* ── LISTA ESTUDIANTES VINCULADOS ───────────────────────────── */}
             <View style={styles.listHeader}>
             <Text style={styles.listTitle}>
-                {verTodos ? "Todos los Estudiantes" : "Estudiantes Vinculados"}
+                Estudiantes Vinculados
             </Text>
             <View style={styles.badge}>
                 <Text style={styles.badgeText}>{estudiantes.length} Total</Text>
@@ -348,7 +487,7 @@
 
             {estudiantes.length === 0 ? (
             <View style={styles.emptyState}>
-                <Text style={styles.emptyIcon}>👥</Text>
+                <Image source={user} style={{ height: 60, width: 60, tintColor: COLORS.textMuted }} />
                 <Text style={styles.emptyText}>
                 {claseSeleccionada
                     ? "No hay estudiantes vinculados a esta clase."
@@ -367,17 +506,6 @@
                 )}
                 />
             </View>
-            )}
-
-            {/* Link "Ver todos los estudiantes" */}
-            {!verTodos && (
-            <TouchableOpacity
-                style={styles.verTodosBtn}
-                onPress={handleVerTodos}
-                activeOpacity={0.7}
-            >
-                <Text style={styles.verTodosText}>Ver todos los estudiantes</Text>
-            </TouchableOpacity>
             )}
 
             <View style={{ height: 24 }} />
@@ -430,6 +558,14 @@
             </View>
             </TouchableOpacity>
         </Modal>
+
+        {/* ✅ MODAL DE CONFIRMACIÓN DE ELIMINACIÓN DE ESTUDIANTE */}
+        <ConfirmDeleteStudentModal
+            visible={confirmModalVisible}
+            studentNombre={studentAEliminar?.nombre || ''}
+            onConfirm={ejecutarEliminacion}
+            onCancel={cancelarEliminacion}
+        />
         </SafeAreaView>
     );
     }
@@ -448,7 +584,7 @@
     scrollContent: {
         paddingHorizontal: 16,
         paddingTop: 20,
-        paddingBottom: 16,
+        paddingBottom: 180,
     },
 
     // Header
@@ -476,6 +612,35 @@
         alignItems: "center", justifyContent: "center",
     },
     avatarWrapText: { fontSize: 20 },
+
+    // Menú desplegable
+    menuDropdown: {
+      position: "absolute",
+      top: 48,
+      left: 0,
+      right: 0,
+      backgroundColor: COLORS.white,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.navBorder,
+      zIndex: 100,
+    },
+    menuItem: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingHorizontal: 20,
+      paddingVertical: 14,
+      borderBottomWidth: 1,
+      borderBottomColor: COLORS.border,
+    },
+    menuItemIcon: {
+      fontSize: 18,
+      marginRight: 12,
+    },
+    menuItemText: {
+      fontSize: 15,
+      fontWeight: "600",
+      color: COLORS.text,
+    },
 
     // Títulos
     labelAdmin: {
@@ -643,25 +808,6 @@
         lineHeight: 16,
     },
 
-    // Botón eliminar
-    actionBtn: {
-        padding: 6,
-        borderRadius: 8,
-        backgroundColor: COLORS.inputBg,
-    },
-    actionIcon: { fontSize: 15 },
-
-    // Ver todos
-    verTodosBtn: {
-        alignItems: "center",
-        paddingVertical: 14,
-    },
-    verTodosText: {
-        fontSize: 14,
-        fontWeight: "600",
-        color: COLORS.accent,
-    },
-
     // Empty state
     emptyState: {
         alignItems: "center",
@@ -670,7 +816,7 @@
         borderRadius: 12,
         marginBottom: 12,
     },
-    emptyIcon: { fontSize: 36, marginBottom: 10 },
+    emptyIcon: { fontSize: 40, marginBottom: 12 },
     emptyText: {
         fontSize: 13,
         color: COLORS.textMuted,
@@ -727,37 +873,4 @@
         color: COLORS.textMuted,
         marginTop: 2,
     },
-
-    // Bottom nav
-    navBar: {
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        right: 0,
-        flexDirection: "row",
-        backgroundColor: COLORS.white,
-        borderTopWidth: 1,
-        borderTopColor: COLORS.navBorder,
-        paddingTop: 8,
-        paddingBottom: Platform.OS === "ios" ? 20 : 10,
-        paddingHorizontal: 4,
-    },
-    navItem: {
-        flex: 1,
-        alignItems: "center",
-        justifyContent: "center",
-    },
-    navIcon: {
-        fontSize: 20,
-        marginBottom: 2,
-        color: COLORS.textMuted,
-    },
-    navIconActive: { color: COLORS.primary },
-    navLabel: {
-        fontSize: 9,
-        fontWeight: "600",
-        color: COLORS.textMuted,
-        letterSpacing: 0.6,
-    },
-    navLabelActive: { color: COLORS.primary },
     });
