@@ -5,7 +5,7 @@
  * ✅ Compatible con: iOS, Android, Web, Emulador, PC
  */
 
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,11 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
+  Image
 } from "react-native";
+
+import calendario from "../assets/icons/calendario.png";
+import clock from "../assets/icons/clock.png";
 
 import {
   crearClase,
@@ -29,8 +33,6 @@ import {
 } from "../controllers/asistenciaController";
 
 const ICONS = {
-  classes:   "📚",
-  students:  "👥",
   qrscan:    "⊞",
   manual:    "📋",
   export:    "↑",
@@ -440,16 +442,14 @@ const confirmStyles = StyleSheet.create({
 
 // ─── Componente principal ────────────────────────────────────────────────────
 export default function ProfesorView({ navigation }) {
-  // Estados del formulario
-  const [nombre,      setNombre]      = useState("");
-  const [horaInicio,  setHoraInicio]  = useState("");
-  const [horaFin,     setHoraFin]     = useState("");
+  // Estados unificados de formulario
+  const [formData, setFormData] = useState({
+    nombre: "",
+    horaInicio: "",
+    horaFin: "",
+  });
 
-  // Estados de edición
-  const [editandoId,      setEditandoId]      = useState(null);
-  const [nombreEdit,      setNombreEdit]      = useState("");
-  const [horaInicioEdit,  setHoraInicioEdit]  = useState("");
-  const [horaFinEdit,     setHoraFinEdit]     = useState("");
+  const [editandoId, setEditandoId] = useState(null);
 
   // Lista de clases
   const [clasesList, setClasesList] = useState(() => {
@@ -457,8 +457,6 @@ export default function ProfesorView({ navigation }) {
     console.log('📋 Clases iniciales cargadas:', clasesIniciales.length);
     return [...clasesIniciales];
   });
-  
-  const [activeTab, setActiveTab] = useState("classes");
 
   // Estados para el picker custom
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -477,79 +475,66 @@ export default function ProfesorView({ navigation }) {
     setClasesList([...clasesActualizadas]);
   }, []);
 
-  // Abrir picker
-  const abrirPicker = (modo) => {
+  // Abrir picker (unificado)
+  const abrirPicker = useCallback((modo, isEdit = false) => {
     setPickerMode(modo);
-    setPickerEditMode(false);
+    setPickerEditMode(isEdit);
     setPickerTitle(modo === 'inicio' ? 'Hora de Inicio' : 'Hora de Fin');
     setPickerVisible(true);
-  };
+  }, []);
 
-  // Abrir picker en modo edición
-  const abrirPickerEdit = (modo) => {
-    setPickerMode(modo);
-    setPickerEditMode(true);
-    setPickerTitle(modo === 'inicio' ? 'Hora de Inicio' : 'Hora de Fin');
-    setPickerVisible(true);
-  };
-
-  // Manejar selección de hora
-  const handleTimeSelect = (hora) => {
-    if (pickerEditMode) {
-      if (pickerMode === 'inicio') {
-        setHoraInicioEdit(hora);
-      } else {
-        setHoraFinEdit(hora);
-      }
-    } else {
-      if (pickerMode === 'inicio') {
-        setHoraInicio(hora);
-      } else {
-        setHoraFin(hora);
-      }
-    }
+  // Manejar selección de hora (simplificado)
+  const handleTimeSelect = useCallback((hora) => {
+    setFormData(prev => ({
+      ...prev,
+      [pickerMode === 'inicio' ? 'horaInicio' : 'horaFin']: hora
+    }));
     setPickerVisible(false);
-  };
+  }, [pickerMode]);
 
   // Crear clase
-  const handleCrearClase = () => {
-    if (!nombre.trim()) {
+  const handleCrearClase = useCallback(() => {
+    if (!formData.nombre.trim()) {
       Alert.alert("Error", "El nombre de la clase no puede estar vacío.");
       return;
     }
-    if (!horaInicio || !horaFin) {
+    if (!formData.horaInicio || !formData.horaFin) {
       Alert.alert("Error", "Debes seleccionar hora de inicio y fin.");
       return;
     }
 
-    const resultado = crearClase({ nombre: nombre.trim(), horaInicio, horaFin });
+    const resultado = crearClase({ 
+      nombre: formData.nombre.trim(), 
+      horaInicio: formData.horaInicio, 
+      horaFin: formData.horaFin 
+    });
 
     if (resultado.ok) {
       Alert.alert("✅ Éxito", resultado.mensaje);
-      setNombre("");
-      setHoraInicio("");
-      setHoraFin("");
+      setFormData({ nombre: "", horaInicio: "", horaFin: "" });
       refreshClases();
     } else {
       Alert.alert("Error", resultado.mensaje);
     }
-  };
+  }, [formData, refreshClases]);
 
   // Iniciar edición
-  const handleIniciarEdicion = (clase) => {
+  const handleIniciarEdicion = useCallback((clase) => {
     setEditandoId(clase.id);
-    setNombreEdit(clase.nombre);
-    setHoraInicioEdit(clase.horaInicio);
-    setHoraFinEdit(clase.horaFin);
-  };
+    setFormData({
+      nombre: clase.nombre,
+      horaInicio: clase.horaInicio,
+      horaFin: clase.horaFin,
+    });
+  }, []);
 
   // Guardar edición
-  const handleGuardarEdicion = () => {
+  const handleGuardarEdicion = useCallback(() => {
     const resultado = editarClase({
-      id:         editandoId,
-      nombre:     nombreEdit.trim(),
-      horaInicio: horaInicioEdit,
-      horaFin:    horaFinEdit,
+      id: editandoId,
+      nombre: formData.nombre.trim(),
+      horaInicio: formData.horaInicio,
+      horaFin: formData.horaFin,
     });
 
     if (resultado.ok) {
@@ -559,102 +544,59 @@ export default function ProfesorView({ navigation }) {
     } else {
       Alert.alert("Error", resultado.mensaje);
     }
-  };
+  }, [editandoId, formData, refreshClases]);
 
   // Cancelar edición
-  const handleCancelarEdicion = () => {
+  const handleCancelarEdicion = useCallback(() => {
     setEditandoId(null);
-  };
+  }, []);
 
-  // ✅✅✅ ELIMINAR CLASE - VERSIÓN CON MODAL PERSONALIZADA
+  // ✅ ELIMINAR CLASE - VERSIÓN OPTIMIZADA
   const handleEliminarClase = useCallback((id, nombreClase) => {
-    console.log('🗑️ handleEliminarClase llamada:', { id, nombreClase });
-    
-    // Guardar referencia de la clase a eliminar
     setClaseAEliminar({ id, nombre: nombreClase });
-    
-    // Mostrar modal de confirmación
     setConfirmModalVisible(true);
   }, []);
 
   // ✅ EJECUTAR ELIMINACIÓN DESPUÉS DE CONFIRMAR
   const ejecutarEliminacion = useCallback(() => {
-    console.log('⚡ ejecutarEliminacion llamada');
-    
-    if (!claseAEliminar) {
-      console.error('❌ No hay clase para eliminar');
-      return;
-    }
+    if (!claseAEliminar) return;
 
     const { id, nombre } = claseAEliminar;
-    console.log('🗑️ Eliminando clase:', { id, nombre });
-
-    // 1. Ejecutar borrado en backend
     const resultado = borrarClase(id);
-    console.log('📊 Resultado borrarClase:', resultado);
 
     if (resultado.ok) {
-      // 2. Actualizar estado local INMEDIATAMENTE
-      const nuevasClases = obtenerClases();
-      console.log('✅ Clase eliminada. Total ahora:', nuevasClases.length);
-      
-      // Crear nueva referencia para forzar re-render
-      setClasesList([...nuevasClases]);
-      
-      // 3. Cerrar modal
+      setClasesList([...obtenerClases()]);
       setConfirmModalVisible(false);
       setClaseAEliminar(null);
       
-      // 4. Mostrar éxito (opcional, puede ser Alert o console)
-      console.log('✅ Éxito: Clase eliminada correctamente');
-      
-      // En móvil usar Alert, en web puede ser console o toast
       if (Platform.OS !== 'web') {
         Alert.alert("✅ Eliminado", `La clase "${nombre}" fue eliminada.`);
       }
     } else {
-      console.error('❌ Error al eliminar:', resultado.mensaje);
       Alert.alert("Error", resultado.mensaje || "No se pudo eliminar la clase");
     }
   }, [claseAEliminar]);
 
   // Cancelar eliminación
   const cancelarEliminacion = useCallback(() => {
-    console.log('❌ Eliminación cancelada por usuario');
     setConfirmModalVisible(false);
     setClaseAEliminar(null);
   }, []);
 
-  // Navegación
-  const ROUTES = {
-    classes:  null,
-    students: "EstudianteView",
-    qrscan:   "QRView",
-    manual:   "ManualView",
-    export:   "ExportView",
-  };
+  // Render ítem de clase (MEMOIZADO)
+  const renderClaseItem = useMemo(() => {
+    return ({ item }) => {
+      const isEditing = editandoId === item.id;
 
-  const handleTabPress = (tab) => {
-    setActiveTab(tab);
-    const route = ROUTES[tab];
-    if (route && navigation) {
-      navigation.navigate(route);
-    }
-  };
-
-  // Render ítem de clase
-  const renderClaseItem = ({ item }) => {
-    const isEditing = editandoId === item.id;
-
-    return (
-      <View style={styles.claseCard}>
+      return (
+        <View style={styles.claseCard}>
         {isEditing ? (
           <View style={styles.editContainer}>
             <Text style={styles.editLabel}>Nombre</Text>
             <TextInput
               style={styles.editInput}
-              value={nombreEdit}
-              onChangeText={setNombreEdit}
+              value={formData.nombre}
+              onChangeText={(text) => setFormData(prev => ({ ...prev, nombre: text }))}
               placeholder="Nombre de la clase"
               placeholderTextColor={COLORS.textMuted}
             />
@@ -662,11 +604,11 @@ export default function ProfesorView({ navigation }) {
             <Text style={styles.editLabel}>Hora de inicio</Text>
             <TouchableOpacity 
               style={styles.timeInputRow}
-              onPress={() => abrirPickerEdit('inicio')}
+              onPress={() => abrirPicker('inicio', true)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.timeText, !horaInicioEdit && styles.timeTextPlaceholder]}>
-                {horaInicioEdit || "Seleccionar hora"}
+              <Text style={[styles.timeText, !formData.horaInicio && styles.timeTextPlaceholder]}>
+                {formData.horaInicio || "Seleccionar hora"}
               </Text>
               <Text style={styles.timeIcon}>🕐</Text>
             </TouchableOpacity>
@@ -674,11 +616,11 @@ export default function ProfesorView({ navigation }) {
             <Text style={styles.editLabel}>Hora de fin</Text>
             <TouchableOpacity 
               style={styles.timeInputRow}
-              onPress={() => abrirPickerEdit('fin')}
+              onPress={() => abrirPicker('fin', true)}
               activeOpacity={0.7}
             >
-              <Text style={[styles.timeText, !horaFinEdit && styles.timeTextPlaceholder]}>
-                {horaFinEdit || "Seleccionar hora"}
+              <Text style={[styles.timeText, !formData.horaFin && styles.timeTextPlaceholder]}>
+                {formData.horaFin || "Seleccionar hora"}
               </Text>
               <Text style={styles.timeIcon}>🕐</Text>
             </TouchableOpacity>
@@ -730,10 +672,7 @@ export default function ProfesorView({ navigation }) {
               {/* ✅ BOTÓN ELIMINAR CON DEBUG Y HIT AREA AMPLIADA */}
               <TouchableOpacity
                 style={[styles.actionBtn, styles.deleteBtn]}
-                onPress={() => {
-                  console.log('🔴 BOTÓN ELIMINAR PRESIONADO - ID:', item.id, 'Nombre:', item.nombre);
-                  handleEliminarClase(item.id, item.nombre);
-                }}
+                onPress={() => handleEliminarClase(item.id, item.nombre)}
                 activeOpacity={0.6}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
@@ -743,13 +682,15 @@ export default function ProfesorView({ navigation }) {
           </View>
         )}
       </View>
-    );
-  };
+      );
+    };
+  }, [handleEliminarClase, handleIniciarEdicion, abrirPicker, editandoId, formData]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
+      {/* Header fijo */}
       <View style={styles.header}>
         <TouchableOpacity style={styles.menuBtn}>
           <Text style={styles.menuIcon}>☰</Text>
@@ -770,9 +711,6 @@ export default function ProfesorView({ navigation }) {
           Gestione sus clases y horarios académicos con precisión.
         </Text>
 
-        {/* DEBUG INFO - Quitar en producción */}
-        <Text style={styles.debugText}>Clases cargadas: {clasesList.length}</Text>
-
         {/* Formulario Nueva Clase */}
         <View style={styles.card}>
           <Text style={styles.cardTitle}>Nueva Clase</Text>
@@ -782,32 +720,32 @@ export default function ProfesorView({ navigation }) {
             style={styles.input}
             placeholder="Ej. Introducción a la Algoritmia"
             placeholderTextColor={COLORS.textMuted}
-            value={nombre}
-            onChangeText={setNombre}
+            value={formData.nombre}
+            onChangeText={(text) => setFormData(prev => ({ ...prev, nombre: text }))}
           />
 
           <Text style={styles.inputLabel}>HORA DE INICIO</Text>
           <TouchableOpacity 
             style={styles.timeInputRow}
-            onPress={() => abrirPicker('inicio')}
+            onPress={() => abrirPicker('inicio', false)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.timeText, !horaInicio && styles.timeTextPlaceholder]}>
-              {horaInicio || "Seleccionar hora"}
+            <Text style={[styles.timeText, !formData.horaInicio && styles.timeTextPlaceholder]}>
+              {formData.horaInicio || "Seleccionar hora"}
             </Text>
-            <Text style={styles.timeIcon}>🕐</Text>
+            <Image source={clock} style={{ height: 20, width: 20 }} />
           </TouchableOpacity>
 
           <Text style={styles.inputLabel}>HORA DE FINALIZACIÓN</Text>
           <TouchableOpacity 
             style={styles.timeInputRow}
-            onPress={() => abrirPicker('fin')}
+            onPress={() => abrirPicker('fin', false)}
             activeOpacity={0.7}
           >
-            <Text style={[styles.timeText, !horaFin && styles.timeTextPlaceholder]}>
-              {horaFin || "Seleccionar hora"}
+            <Text style={[styles.timeText, !formData.horaFin && styles.timeTextPlaceholder]}>
+              {formData.horaFin || "Seleccionar hora"}
             </Text>
-            <Text style={styles.timeIcon}>📅</Text>
+            <Image source={calendario} style={{ height: 30, width: 30 }} />
           </TouchableOpacity>
 
           <TouchableOpacity
@@ -841,7 +779,7 @@ export default function ProfesorView({ navigation }) {
             renderItem={renderClaseItem}
             scrollEnabled={false}
             ItemSeparatorComponent={() => <View style={{ height: 8 }} />}
-            extraData={[clasesList.length, editandoId, confirmModalVisible]}
+            extraData={[clasesList.length, editandoId]}
           />
         )}
 
@@ -853,10 +791,7 @@ export default function ProfesorView({ navigation }) {
         visible={pickerVisible}
         onSelect={handleTimeSelect}
         onCancel={() => setPickerVisible(false)}
-        initialValue={pickerEditMode 
-          ? (pickerMode === 'inicio' ? horaInicioEdit : horaFinEdit)
-          : (pickerMode === 'inicio' ? horaInicio : horaFin)
-        }
+        initialValue={pickerMode === 'inicio' ? formData.horaInicio : formData.horaFin}
         title={pickerTitle}
       />
 
@@ -867,42 +802,14 @@ export default function ProfesorView({ navigation }) {
         onConfirm={ejecutarEliminacion}
         onCancel={cancelarEliminacion}
       />
-
-      {/* Bottom Navigation */}
-      <View style={styles.navBar}>
-        {NAV_TABS.map((tab) => (
-          <TouchableOpacity
-            key={tab.id}
-            style={styles.navItem}
-            onPress={() => handleTabPress(tab.id)}
-            activeOpacity={0.7}
-          >
-            <Text style={[styles.navIcon, activeTab === tab.id && styles.navIconActive]}>
-              {tab.icon}
-            </Text>
-            <Text style={[styles.navLabel, activeTab === tab.id && styles.navLabelActive]}>
-              {tab.label}
-            </Text>
-          </TouchableOpacity>
-        ))}
-      </View>
     </SafeAreaView>
   );
 }
-
-const NAV_TABS = [
-  { id: "classes",  label: "CLASSES",  icon: "📚" },
-  { id: "students", label: "STUDENTS", icon: "👥" },
-  { id: "qrscan",   label: "QR SCAN",  icon: "⊞"  },
-  { id: "manual",   label: "MANUAL",   icon: "📋" },
-  { id: "export",   label: "EXPORT",   icon: "↑"  },
-];
 
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
-    paddingTop: Platform.OS === "android" ? StatusBar.currentHeight : 0,
   },
   scrollView: {
     flex: 1,
@@ -953,14 +860,6 @@ const styles = StyleSheet.create({
     color: COLORS.textMuted,
     marginBottom: 20,
     lineHeight: 20,
-  },
-
-  // Debug text
-  debugText: {
-    fontSize: 12,
-    color: COLORS.accent,
-    marginBottom: 10,
-    fontWeight: '600',
   },
 
   card: {
@@ -1018,11 +917,6 @@ const styles = StyleSheet.create({
   },
   timeTextPlaceholder: {
     color: COLORS.textMuted,
-  },
-  timeIcon: {
-    fontSize: 16,
-    color: COLORS.textMuted,
-    marginLeft: 8,
   },
 
   btnCrear: {
@@ -1195,31 +1089,5 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
 
-  navBar: {
-    flexDirection: "row",
-    backgroundColor: COLORS.white,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.navBorder,
-    paddingTop: 8,
-    paddingBottom: Platform.OS === "ios" ? 20 : 10,
-    paddingHorizontal: 4,
-  },
-  navItem: {
-    flex: 1,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  navIcon: {
-    fontSize: 20,
-    marginBottom: 2,
-    color: COLORS.textMuted,
-  },
-  navIconActive: { color: COLORS.primary },
-  navLabel: {
-    fontSize: 9,
-    fontWeight: "600",
-    color: COLORS.textMuted,
-    letterSpacing: 0.6,
-  },
   navLabelActive: { color: COLORS.primary },
 });
