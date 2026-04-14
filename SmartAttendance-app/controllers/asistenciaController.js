@@ -1,31 +1,15 @@
 import { estudiantes } from "../models/estudiantes";
-import { clases, asistencias, errorLogs } from "../models/clases";
+import { 
+  clases, 
+  asistencias, 
+  errorLogs, 
+  usuariosRegistrados,
+  guardarAsistenciasEnStorage, 
+  guardarClasesEnStorage,
+  guardarEstudiantesEnStorage,
+  guardarUsuariosEnStorage
+} from "../models/clases";
 import { getCurrentTime, getCurrentDate } from "../utils/time";
-
-// ─────────────────────────────────────────
-// REGISTROS DE USUARIOS (Guardados en memoria)
-// ─────────────────────────────────────────
-
-const usuariosRegistrados = {
-  profesores: [
-    {
-      id: "PRO-2023-0001",
-      nombre: "Profesor Demo",
-      correo: "profesor@universidad.edu",
-      contrasena: "1234",
-      departamento: "Demostración",
-    },
-  ],
-  estudiantes: [
-    {
-      id: "STU-2023-0001",
-      nombre: "Estudiante Demo",
-      correo: "estudiante@universidad.edu",
-      contrasena: "1234",
-      celular: "+1 (555) 000-0000",
-    },
-  ],
-};
 
 // ─────────────────────────────────────────
 // CLASES
@@ -59,6 +43,8 @@ export function crearClase({ id, nombre, horaInicio, horaFin }) {
   }
 
   clases.push({ id: claseId, nombre, horaInicio, horaFin });
+  // Guardar en persistencia
+  guardarClasesEnStorage();
   return { ok: true, mensaje: "Clase creada exitosamente.", claseId };
 }
 
@@ -110,6 +96,7 @@ export function agregarEstudiante({ id, nombre, celular, claseId }) {
   if (existe) {
     if (!existe.clases.includes(claseId)) {
       existe.clases.push(claseId);
+      guardarEstudiantesEnStorage();
       return { ok: true, mensaje: `${existe.nombre} vinculado a la clase.` };
     }
     return {
@@ -119,6 +106,7 @@ export function agregarEstudiante({ id, nombre, celular, claseId }) {
   }
 
   estudiantes.push({ id, nombre, celular, clases: [claseId] });
+  guardarEstudiantesEnStorage();
   return { ok: true, mensaje: `Estudiante ${nombre} creado y vinculado.` };
 }
 
@@ -282,6 +270,9 @@ export function registrarAsistenciaQRCompleto({ estudianteId, celular, claseId, 
     tipo: "qr",
   });
 
+  // Guardar en persistencia
+  guardarAsistenciasEnStorage();
+
   // Retornar mensaje de éxito con el nombre del estudiante
   return {
     ok: true,
@@ -321,6 +312,9 @@ export function guardarAsistenciaManual({ claseId, registros }) {
     });
     guardados++;
   }
+
+  // Guardar en persistencia
+  guardarAsistenciasEnStorage();
 
   // Retornar mensaje de éxito con el total de asistencias guardadas
   return { ok: true, mensaje: `${guardados} asistencia(s) guardada(s).` };
@@ -436,6 +430,8 @@ export function registrarEstudiante({ nombre, id, celular, correo, contrasena })
     contrasena,
     celular,
   });
+  
+  guardarUsuariosEnStorage();
 
   return { ok: true, mensaje: "Estudiante registrado exitosamente." };
 }
@@ -461,6 +457,8 @@ export function registrarProfesor({ nombre, id, departamento, correo, contrasena
     contrasena,
     departamento,
   });
+  
+  guardarUsuariosEnStorage();
 
   return { ok: true, mensaje: "Profesor registrado exitosamente." };
 }
@@ -544,6 +542,9 @@ export function registrarAsistenciaQR({ estudianteId, celular, claseId, qrData }
     hora: getCurrentTime(),
     tipo: "qr",
   });
+
+  // Guardar en persistencia
+  guardarAsistenciasEnStorage();
 
   return { ok: true, mensaje: "✓ Asistencia registrada correctamente." };
 }

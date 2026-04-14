@@ -1,5 +1,5 @@
 // App.js
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
   View,
   StyleSheet,
@@ -20,6 +20,9 @@ import ExportView from "./components/ExportView";
 import LoginView from "./components/LoginView";
 import RegisterRolView from "./components/RegisterRolView";
 import FormRegistroView from "./components/FormRegistroView";
+
+// Cargar datos del storage al iniciar
+import { cargarDatosDelStorage } from "./models/clases";
 
 import book from "./assets/icons/book.png";
 import user from "./assets/icons/user.png";
@@ -54,6 +57,11 @@ export default function App() {
   const [mostrarRegistro, setMostrarRegistro] = useState(false); // RegisterRolView
   const [rolSeleccionado, setRolSeleccionado] = useState(null); // Rol elegido
   const [mostrarFormulario, setMostrarFormulario] = useState(false); // FormRegistroView
+
+  // Cargar datos al montar la app
+  useEffect(() => {
+    cargarDatosDelStorage();
+  }, []);
 
   const handleLoginExitoso = (usuarioData) => {
     setUsuario(usuarioData);

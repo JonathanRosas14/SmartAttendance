@@ -1,8 +1,10 @@
 // utils/exportExcel.js
 // Exportar asistencias a Excel con formato: Nombre, ID, Teléfono, Asistió, No Asistió
 
-import * as FileSystem from 'expo-file-system';
+import { Platform } from 'react-native';
+import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
+import * as MediaLibrary from 'expo-media-library';
 
 /**
  * Generar CSV formateado para Excel
@@ -61,26 +63,50 @@ export async function exportarAsistenciaExcel(
     const fecha = new Date().toISOString().split('T')[0];
     const nombreArchivo = `Asistencia_${nombreClase.replace(/\s+/g, '_')}_${fecha}.csv`;
 
-    // Ruta del archivo
+    // En la web, descargar directamente
+    if (Platform.OS === 'web') {
+      const elemento = document.createElement('a');
+      elemento.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+      elemento.setAttribute('download', nombreArchivo);
+      elemento.style.display = 'none';
+      document.body.appendChild(elemento);
+      elemento.click();
+      document.body.removeChild(elemento);
+      return { ok: true, mensaje: 'Asistencia exportada exitosamente' };
+    }
+
+    // En dispositivos móviles (Android/iOS)
     const rutaArchivo = FileSystem.documentDirectory + nombreArchivo;
 
     // Escribir archivo
     await FileSystem.writeAsStringAsync(rutaArchivo, csv, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
-    // Compartir archivo
+    // Intentar guardar en Galería/Descargas primero (Android)
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        await MediaLibrary.saveToLibraryAsync(rutaArchivo);
+        console.log('✅ Archivo guardado en Galería');
+        return { ok: true, mensaje: 'Archivo guardado en tu galería/descargas' };
+      }
+    } catch (error) {
+      console.log('ℹ️ MediaLibrary no disponible, intentando Sharing...');
+    }
+
+    // Compartir archivo (fallback)
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(rutaArchivo, {
         mimeType: 'text/csv',
         dialogTitle: `Exportar Asistencia - ${nombreClase}`,
       });
+      return { ok: true, mensaje: 'Asistencia exportada exitosamente' };
     } else {
       console.log('Sharing no disponible en este dispositivo');
-      return { ok: true, mensaje: 'Archivo generado pero no se puede compartir', rutaArchivo };
+      return { ok: true, mensaje: 'Archivo generado', rutaArchivo };
     }
 
-    return { ok: true, mensaje: 'Asistencia exportada exitosamente' };
   } catch (error) {
     console.error('Error al exportar Excel:', error);
     return { ok: false, mensaje: `Error: ${error.message}` };
@@ -131,20 +157,45 @@ export async function exportarAsistenciaPorSesion(
     const fecha = new Date().toISOString().split('T')[0];
     const nombreArchivo = `Asistencia_Detallada_${nombreClase.replace(/\s+/g, '_')}_${fecha}.csv`;
 
-    // Ruta del archivo
+    // En la web, descargar directamente
+    if (Platform.OS === 'web') {
+      const elemento = document.createElement('a');
+      elemento.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+      elemento.setAttribute('download', nombreArchivo);
+      elemento.style.display = 'none';
+      document.body.appendChild(elemento);
+      elemento.click();
+      document.body.removeChild(elemento);
+      return { ok: true, mensaje: 'Asistencia detallada exportada correctamente' };
+    }
+
+    // En dispositivos móviles
     const rutaArchivo = FileSystem.documentDirectory + nombreArchivo;
 
     // Escribir archivo
     await FileSystem.writeAsStringAsync(rutaArchivo, csv, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
-    // Compartir archivo
+    // Intentar guardar en Galería/Descargas primero (Android)
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        await MediaLibrary.saveToLibraryAsync(rutaArchivo);
+        console.log('✅ Archivo guardado en Galería');
+        return { ok: true, mensaje: 'Archivo guardado en tu galería/descargas' };
+      }
+    } catch (error) {
+      console.log('ℹ️ MediaLibrary no disponible, intentando Sharing...');
+    }
+
+    // Compartir archivo (fallback)
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(rutaArchivo, {
         mimeType: 'text/csv',
         dialogTitle: `Exportar Asistencia Detallada - ${nombreClase}`,
       });
+      return { ok: true, mensaje: 'Asistencia detallada exportada exitosamente' };
     }
 
     return { ok: true, mensaje: 'Asistencia detallada exportada exitosamente' };
@@ -182,20 +233,45 @@ export async function exportarAsistenciaGeneral(estudiantes, asistencias) {
     const fecha = new Date().toISOString().split('T')[0];
     const nombreArchivo = `Asistencia_General_${fecha}.csv`;
 
-    // Ruta del archivo
+    // En la web, descargar directamente
+    if (Platform.OS === 'web') {
+      const elemento = document.createElement('a');
+      elemento.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
+      elemento.setAttribute('download', nombreArchivo);
+      elemento.style.display = 'none';
+      document.body.appendChild(elemento);
+      elemento.click();
+      document.body.removeChild(elemento);
+      return { ok: true, mensaje: 'Asistencias generales exportadas correctamente' };
+    }
+
+    // En dispositivos móviles
     const rutaArchivo = FileSystem.documentDirectory + nombreArchivo;
 
     // Escribir archivo
     await FileSystem.writeAsStringAsync(rutaArchivo, csv, {
-      encoding: FileSystem.EncodingType.UTF8,
+      encoding: 'utf8',
     });
 
-    // Compartir archivo
+    // Intentar guardar en Galería/Descargas primero (Android)
+    try {
+      const { status } = await MediaLibrary.requestPermissionsAsync();
+      if (status === 'granted') {
+        await MediaLibrary.saveToLibraryAsync(rutaArchivo);
+        console.log('✅ Archivo guardado en Galería');
+        return { ok: true, mensaje: 'Archivo guardado en tu galería/descargas' };
+      }
+    } catch (error) {
+      console.log('ℹ️ MediaLibrary no disponible, intentando Sharing...');
+    }
+
+    // Compartir archivo (fallback)
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(rutaArchivo, {
         mimeType: 'text/csv',
         dialogTitle: 'Exportar Asistencias Generales',
       });
+      return { ok: true, mensaje: 'Asistencias generales exportadas exitosamente' };
     }
 
     return { ok: true, mensaje: 'Asistencias generales exportadas exitosamente' };

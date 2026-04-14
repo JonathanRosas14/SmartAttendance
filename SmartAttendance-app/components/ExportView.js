@@ -102,6 +102,8 @@ export default function ExportView({ setPantalla, onLogout }) {
   const [estadisticas, setEstadisticas] = useState([]);
   const [verTodas, setVerTodas] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
+  const [modoExportacion, setModoExportacion] = useState("completo"); // "completo" | "sesion"
 
   // ── Navegación ────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("export");
@@ -148,6 +150,61 @@ export default function ExportView({ setPantalla, onLogout }) {
     setDropdownVisible(false);
     setVerTodas(false);
     // Los datos se actualizarán automáticamente por el useEffect
+  };
+
+  // ✅ EXPORTAR SESIÓN ESPECÍFICA
+  const handleExportarSesionEspecifica = async () => {
+    console.log('📅 Exportando sesión específica:', fechaSeleccionada);
+    
+    if (!claseSeleccionadaId) {
+      Alert.alert("Error", "Selecciona una clase primero.");
+      return;
+    }
+
+    if (!fechaSeleccionada) {
+      Alert.alert("Error", "Selecciona una fecha para exportar.");
+      return;
+    }
+
+    try {
+      setCargando(true);
+      
+      const estudiantesClase = obtenerEstudiantesPorClase(claseSeleccionadaId);
+      // Filtrar asistencias solo de la sesión seleccionada
+      const asistenciasClase = asistencias.filter(
+        (a) => a.claseId === claseSeleccionadaId && a.fecha === fechaSeleccionada
+      );
+      
+      if (asistenciasClase.length === 0) {
+        setCargando(false);
+        Alert.alert("Sin datos", `No hay asistencias registradas para ${formatearFecha(fechaSeleccionada)}`);
+        return;
+      }
+
+      // Exportar solo esta sesión
+      const resultado = await exportarAsistenciaExcel(
+        claseSeleccionadaId,
+        `${claseSeleccionada?.nombre} - ${formatearFecha(fechaSeleccionada)}`,
+        estudiantesClase,
+        asistenciasClase
+      );
+
+      setCargando(false);
+      
+      if (resultado.ok) {
+        Alert.alert(
+          "✅ Exportado", 
+          `Asistencia de ${formatearFecha(fechaSeleccionada)} exportada`
+        );
+      } else {
+        Alert.alert("Error", resultado.mensaje);
+      }
+      
+    } catch (error) {
+      console.error('❌ Error:', error);
+      setCargando(false);
+      Alert.alert("Error", error.message);
+    }
   };
 
   // ✅✅✅ EXPORTAR A EXCEL - NUEVA IMPLEMENTACIÓN SIMPLIFICADA
@@ -263,24 +320,38 @@ export default function ExportView({ setPantalla, onLogout }) {
   };
 
   // ─────────────────────────────────────────────────────────────────────────
-  // RENDER — ítem de sesión
+  // RENDER — ítem de sesión (CLICKEABLE)
   // ─────────────────────────────────────────────────────────────────────────
-  const sesionesMostradas = verTodas ? sesiones : sesiones.slice(0, 5);
-
-  const renderSesion = ({ item, index }) => (
-    <View style={styles.sesionRow}>
-      <View style={styles.sesionInfo}>
-        <Text style={styles.sesionFecha}>{formatearFecha(item.fecha)}</Text>
-        <Text style={styles.sesionClase}>
-          {claseSeleccionada?.nombre || "Clase"}
-        </Text>
-      </View>
-      <View style={styles.sesionBadge}>
-        <Text style={styles.sesionTotal}>{item.total}</Text>
-        <Text style={styles.sesionLabel}>asistencias</Text>
-      </View>
-    </View>
-  );
+  const renderSesion = ({ item, index }) => {
+    const esSeleccionada = fechaSeleccionada === item.fecha;
+    
+    return (
+      <TouchableOpacity
+        style={[
+          styles.sesionRow,
+          esSeleccionada && styles.sesionRowSelected,
+        ]}
+        onPress={() => setFechaSeleccionada(item.fecha)}
+        activeOpacity={0.7}
+      >
+        <View style={styles.sesionInfo}>
+          <Text style={styles.sesionFecha}>{formatearFecha(item.fecha)}</Text>
+          <Text style={styles.sesionClase}>
+            {claseSeleccionada?.nombre || "Clase"}
+          </Text>
+        </View>
+        <View style={styles.sesionBadge}>
+          <Text style={styles.sesionTotal}>{item.total}</Text>
+          <Text style={styles.sesionLabel}>asistencias</Text>
+        </View>
+        {esSeleccionada && (
+          <View style={styles.sesionCheckmark}>
+            <Text style={styles.checkmarkText}>✓</Text>
+          </View>
+        )}
+      </TouchableOpacity>
+    );
+  };
 
   // ─────────────────────────────────────────────────────────────────────────
   // RENDER — ítem de estudiante con estadísticas
@@ -385,7 +456,7 @@ export default function ExportView({ setPantalla, onLogout }) {
         {/* ── RESUMEN DE SESIONES ────────────────────────────────────── */}
         <View style={styles.resumenCard}>
           <View style={styles.resumenHeader}>
-            <Text style={styles.resumenTitulo}>SESIONES REGISTRADAS</Text>
+            <Text style={styles.resumenTitulo}>SELECCIONA UNA SESIÓN PARA EXPORTAR</Text>
             {cargando && <Text style={styles.cargandoText}>⟳</Text>}
           </View>
 
@@ -395,13 +466,13 @@ export default function ExportView({ setPantalla, onLogout }) {
               <Text style={styles.emptyText}>
                 {claseSeleccionada
                   ? "No hay sesiones registradas para esta clase.\n\nRegistra asistencia desde ManualView o QR."
-                  : "Selecciona una clase para ver el resumen."}
+                  : "Selecciona una clase para ver las sesiones."}
               </Text>
             </View>
           ) : (
             <>
               <FlatList
-                data={sesionesMostradas}
+                data={sesiones}
                 keyExtractor={(item, index) => `${item.fecha}-${index}`}
                 renderItem={renderSesion}
                 scrollEnabled={false}
@@ -414,7 +485,7 @@ export default function ExportView({ setPantalla, onLogout }) {
               {!verTodas && sesiones.length > 5 && (
                 <TouchableOpacity
                   style={styles.verTodasBtn}
-                  onPress={handleVerTodas}
+                  onPress={() => setVerTodas(true)}
                   activeOpacity={0.7}
                 >
                   <Text style={styles.verTodasText}>VER TODAS LAS SESIONES ({sesiones.length})</Text>
@@ -441,29 +512,20 @@ export default function ExportView({ setPantalla, onLogout }) {
         <View style={{ height: 24 }} />
       </ScrollView>
 
-      {/* ── BOTÓN EXPORTAR A EXCEL (DOS OPCIONES) ──────── */}
+      {/* ── BOTÓN EXPORTAR ──────────────────────────────────────────– */}
       <View style={styles.exportWrap}>
         <TouchableOpacity
-          style={[styles.btnExportar, sesiones.length === 0 && styles.btnExportarDisabled]}
-          onPress={handleExportar}
+          style={[
+            styles.btnExportar,
+            (!fechaSeleccionada || cargando) && styles.btnExportarDisabled
+          ]}
+          onPress={handleExportarSesionEspecifica}
           activeOpacity={0.85}
-          disabled={sesiones.length === 0 || cargando}
-          accessibilityLabel="Exportar a Excel básico"
+          disabled={!fechaSeleccionada || cargando}
+          accessibilityLabel="Exportar sesión seleccionada"
         >
           <Text style={styles.btnExportarText}>
-            {cargando ? "GENERANDO..." : sesiones.length === 0 ? "SIN DATOS" : "EXPORTAR EXCEL"}
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[styles.btnExportar, styles.btnExportarSecondary, sesiones.length === 0 && styles.btnExportarDisabled]}
-          onPress={handleExportarDetallado}
-          activeOpacity={0.85}
-          disabled={sesiones.length === 0 || cargando}
-          accessibilityLabel="Exportar Excel detallado"
-        >
-          <Text style={styles.btnExportarText}>
-            {cargando ? "GENERANDO..." : "DETALLADO"}
+            {cargando ? "⟳ GENERANDO..." : !fechaSeleccionada ? "SELECCIONA UNA SESIÓN" : "EXPORTAR SESIÓN"}
           </Text>
         </TouchableOpacity>
       </View>
@@ -672,10 +734,18 @@ const styles = StyleSheet.create({
     justifyContent: "space-between",
     alignItems: "center",
     paddingVertical: 13,
+    paddingHorizontal: 12,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 8,
+    marginBottom: 8,
+  },
+  sesionRowSelected: {
+    backgroundColor: COLORS.greenLight,
+    borderLeftColor: COLORS.green,
   },
   sesionSeparator: {
-    height: 1,
-    backgroundColor: COLORS.navBorder,
+    height: 0,
+    backgroundColor: "transparent",
   },
   sesionInfo: {
     flex: 1,
@@ -692,6 +762,7 @@ const styles = StyleSheet.create({
   },
   sesionBadge: {
     alignItems: "flex-end",
+    marginRight: 8,
   },
   sesionTotal: {
     fontSize: 18,
@@ -702,6 +773,19 @@ const styles = StyleSheet.create({
     fontSize: 10,
     color: COLORS.textMuted,
     textTransform: "uppercase",
+  },
+  sesionCheckmark: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: COLORS.green,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  checkmarkText: {
+    fontSize: 16,
+    color: COLORS.white,
+    fontWeight: "700",
   },
 
   // Estadísticas por estudiante
@@ -846,4 +930,64 @@ const styles = StyleSheet.create({
   navIconActive:  { color: COLORS.primary },
   navLabel:       { fontSize: 9, fontWeight: "600", color: COLORS.textMuted, letterSpacing: 0.6 },
   navLabelActive: { color: COLORS.primary },
+
+  // Selector de fecha
+  modoStack: {
+    flexDirection: "row",
+    gap: 8,
+    marginBottom: 16,
+  },
+  modoBtn: {
+    flex: 1,
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 8,
+    backgroundColor: COLORS.inputBg,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    alignItems: "center",
+  },
+  modoBtnActive: {
+    backgroundColor: COLORS.accent,
+    borderColor: COLORS.accent,
+  },
+  modoBtnText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.text,
+  },
+  modoBtnTextActive: {
+    color: COLORS.white,
+  },
+  fechaSelector: {
+    marginTop: 8,
+  },
+  fechaLabel: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: COLORS.text,
+    marginBottom: 8,
+  },
+  fechaOption: {
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    marginBottom: 6,
+    borderRadius: 8,
+    backgroundColor: COLORS.inputBg,
+    borderLeftWidth: 3,
+    borderLeftColor: COLORS.border,
+  },
+  fechaOptionActive: {
+    backgroundColor: COLORS.greenLight,
+    borderLeftColor: COLORS.green,
+  },
+  fechaOptionText: {
+    fontSize: 13,
+    color: COLORS.text,
+    fontWeight: "500",
+  },
+  fechaOptionTextActive: {
+    color: COLORS.primary,
+    fontWeight: "600",
+  },
 });
