@@ -24,6 +24,9 @@ import {
 
 import calendario from "../assets/icons/calendario.png";
 import clock from "../assets/icons/clock.png";
+import edit from "../assets/icons/edit.png";
+import trash from "../assets/icons/trash.png";
+import book from "../assets/icons/book.png";
 
 import {
   crearClase,
@@ -31,29 +34,6 @@ import {
   borrarClase,
   obtenerClases,
 } from "../controllers/asistenciaController";
-
-const ICONS = {
-  qrscan:    "⊞",
-  manual:    "📋",
-  export:    "↑",
-  edit:      "✏️",
-  trash:     "🗑️",
-  clock:     "🕐",
-  code:      ">_",
-  web:       "🌐",
-  ai:        "🤖",
-  default:   "📘",
-  avatar:    "👤",
-  arrow:     "→",
-};
-
-function getClaseIcon(nombre = "") {
-  const n = nombre.toLowerCase();
-  if (n.includes("web") || n.includes("html") || n.includes("css")) return ICONS.web;
-  if (n.includes("ia") || n.includes("inteligencia") || n.includes("artificial")) return ICONS.ai;
-  if (n.includes("dato") || n.includes("estructura") || n.includes("algoritm")) return ICONS.code;
-  return ICONS.default;
-}
 
 const COLORS = {
   primary:     "#1A3A6B",
@@ -327,7 +307,7 @@ function ConfirmDeleteModal({ visible, claseNombre, onConfirm, onCancel }) {
       <View style={confirmStyles.overlay}>
         <View style={confirmStyles.container}>
           <View style={confirmStyles.iconContainer}>
-            <Text style={confirmStyles.icon}>🗑️</Text>
+            <Image source={trash} style={{ height: 28, width: 28 }} />
           </View>
           
           <Text style={confirmStyles.title}>Eliminar clase</Text>
@@ -378,14 +358,11 @@ const confirmStyles = StyleSheet.create({
     width: 60,
     height: 60,
     borderRadius: 30,
-    backgroundColor: '#FEE2E2',
     justifyContent: 'center',
     alignItems: 'center',
     marginBottom: 16,
   },
-  icon: {
-    fontSize: 28,
-  },
+
   title: {
     fontSize: 20,
     fontWeight: '700',
@@ -441,7 +418,7 @@ const confirmStyles = StyleSheet.create({
 });
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export default function ProfesorView({ navigation }) {
+export default function ProfesorView({ setPantalla, onLogout }) {
   // Estados unificados de formulario
   const [formData, setFormData] = useState({
     nombre: "",
@@ -450,6 +427,7 @@ export default function ProfesorView({ navigation }) {
   });
 
   const [editandoId, setEditandoId] = useState(null);
+  const [menuVisible, setMenuVisible] = useState(false);
 
   // Lista de clases
   const [clasesList, setClasesList] = useState(() => {
@@ -610,7 +588,7 @@ export default function ProfesorView({ navigation }) {
               <Text style={[styles.timeText, !formData.horaInicio && styles.timeTextPlaceholder]}>
                 {formData.horaInicio || "Seleccionar hora"}
               </Text>
-              <Text style={styles.timeIcon}>🕐</Text>
+              <Image source={clock} style={{ height: 20, width: 20 }} />
             </TouchableOpacity>
 
             <Text style={styles.editLabel}>Hora de fin</Text>
@@ -622,7 +600,7 @@ export default function ProfesorView({ navigation }) {
               <Text style={[styles.timeText, !formData.horaFin && styles.timeTextPlaceholder]}>
                 {formData.horaFin || "Seleccionar hora"}
               </Text>
-              <Text style={styles.timeIcon}>🕐</Text>
+              <Image source={clock} style={{ height: 20, width: 20 }} />
             </TouchableOpacity>
 
             <View style={styles.editActions}>
@@ -645,15 +623,13 @@ export default function ProfesorView({ navigation }) {
         ) : (
           <View style={styles.claseRow}>
             <View style={styles.claseIconWrap}>
-              <Text style={styles.claseIconText}>
-                {getClaseIcon(item.nombre)}
-              </Text>
+              <Image source={book} style={{ height: 24, width: 24 }} />
             </View>
 
             <View style={styles.claseInfo}>
               <Text style={styles.claseNombre}>{item.nombre}</Text>
               <View style={styles.claseHorario}>
-                <Text style={styles.claseClockIcon}>🕐</Text>
+                <Image source={clock} style={{ height: 16, width: 16, marginRight: 4 }} />
                 <Text style={styles.claseHorarioText}>
                   {item.horaInicio} — {item.horaFin}
                 </Text>
@@ -666,7 +642,7 @@ export default function ProfesorView({ navigation }) {
                 onPress={() => handleIniciarEdicion(item)}
                 activeOpacity={0.7}
               >
-                <Text style={styles.actionIcon}>✏️</Text>
+                <Image source={edit} style={{ height: 22, width: 22, tintColor: COLORS.primary }} />
               </TouchableOpacity>
               
               {/* ✅ BOTÓN ELIMINAR CON DEBUG Y HIT AREA AMPLIADA */}
@@ -676,7 +652,7 @@ export default function ProfesorView({ navigation }) {
                 activeOpacity={0.6}
                 hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
               >
-                <Text style={[styles.actionIcon, styles.deleteIcon]}>🗑️</Text>
+                <Image source={trash} style={{ height: 22, width: 22, tintColor: COLORS.primary }} />
               </TouchableOpacity>
             </View>
           </View>
@@ -692,7 +668,10 @@ export default function ProfesorView({ navigation }) {
 
       {/* Header fijo */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuBtn}>
+        <TouchableOpacity 
+          style={styles.menuBtn}
+          onPress={() => setMenuVisible(!menuVisible)}
+        >
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>SmartAttendance</Text>
@@ -700,6 +679,22 @@ export default function ProfesorView({ navigation }) {
           <Text style={styles.avatarText}>👤</Text>
         </View>
       </View>
+
+      {/* Menú desplegable */}
+      {menuVisible && (
+        <View style={styles.menuDropdown}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setMenuVisible(false);
+              if (onLogout) onLogout();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.menuItemText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView
         style={styles.scrollView}
@@ -753,7 +748,7 @@ export default function ProfesorView({ navigation }) {
             onPress={handleCrearClase}
             activeOpacity={0.85}
           >
-            <Text style={styles.btnCrearText}>CREAR CLASE  →</Text>
+            <Text style={styles.btnCrearText}>CREAR CLASE</Text>
           </TouchableOpacity>
         </View>
 
@@ -767,7 +762,7 @@ export default function ProfesorView({ navigation }) {
 
         {clasesList.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📭</Text>
+            <Image source={book} style={{ height: 50, width: 50, tintColor: COLORS.textMuted, marginBottom: 12 }} />
             <Text style={styles.emptyText}>
               Aún no has creado ninguna clase.
             </Text>
@@ -818,7 +813,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 180,
   },
 
   header: {
@@ -848,6 +843,35 @@ const styles = StyleSheet.create({
     justifyContent: "center",
   },
   avatarText: { fontSize: 20 },
+
+  // Menú desplegable
+  menuDropdown: {
+    position: "absolute",
+    top: 62,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.navBorder,
+    zIndex: 100,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  menuItemIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.text,
+  },
 
   panelTitle: {
     fontSize: 26,
@@ -981,7 +1005,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     marginRight: 12,
   },
-  claseIconText: { fontSize: 20 },
   claseInfo: {
     flex: 1,
     marginRight: 8,
@@ -1010,22 +1033,11 @@ const styles = StyleSheet.create({
     gap: 6,
   },
   actionBtn: {
-    padding: 8,
-    borderRadius: 8,
-    backgroundColor: COLORS.inputBg,
-    minWidth: 40,
-    minHeight: 40,
+    padding: 4,
     justifyContent: 'center',
     alignItems: 'center',
   },
   deleteBtn: {
-    backgroundColor: '#FEE2E2', // Fondo rojo claro para destacar
-  },
-  actionIcon: { 
-    fontSize: 18,
-  },
-  deleteIcon: {
-    // Emoji de basura ya es rojo por defecto
   },
 
   editContainer: { paddingVertical: 4 },
@@ -1078,15 +1090,24 @@ const styles = StyleSheet.create({
   emptyState: {
     alignItems: "center",
     paddingVertical: 40,
+    backgroundColor: COLORS.card,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: "#000",
+    shadowOpacity: 0.04,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 1 },
+    elevation: 1,
   },
   emptyIcon: {
     fontSize: 40,
-    marginBottom: 10,
+    marginBottom: 12,
   },
   emptyText: {
     fontSize: 14,
     color: COLORS.textMuted,
     textAlign: "center",
+    paddingHorizontal: 20,
   },
 
   navLabelActive: { color: COLORS.primary },

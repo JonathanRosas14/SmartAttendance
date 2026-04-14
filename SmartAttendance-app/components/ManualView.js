@@ -29,7 +29,10 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
+  Image
 } from "react-native";
+
+import planning from "../assets/icons/planning.png";
 
 import {
   obtenerClases,
@@ -80,25 +83,10 @@ function getAvatarColor(id = "") {
   return AVATAR_COLORS[sum % AVATAR_COLORS.length];
 }
 
-// ─── Tabs de navegación ───────────────────────────────────────────────────────
-const NAV_TABS = [
-  { id: "classes",  label: "CLASSES",  icon: "📚" },
-  { id: "students", label: "STUDENTS", icon: "👥" },
-  { id: "qrscan",   label: "QR SCAN",  icon: "⊞"  },
-  { id: "manual",   label: "MANUAL",   icon: "📋" },
-  { id: "export",   label: "EXPORT",   icon: "↑"  },
-];
-
-const ROUTES = {
-  classes:  "ProfesorView",
-  students: "EstudianteView",
-  qrscan:   "QRView",
-  manual:   null,
-  export:   "ExportView",
-};
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ManualView({ navigation }) {
+export default function ManualView({ setPantalla, onLogout }) {
+  const [menuVisible, setMenuVisible] = useState(false);
 
   // ── Clases ────────────────────────────────────────────────────────────────
   const [clases] = useState(() => obtenerClases());
@@ -282,7 +270,11 @@ export default function ManualView({ navigation }) {
 
       {/* ── HEADER ────────────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuBtn} accessibilityLabel="Menú">
+        <TouchableOpacity 
+          style={styles.menuBtn} 
+          accessibilityLabel="Menú"
+          onPress={() => setMenuVisible(!menuVisible)}
+        >
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>SmartAttendance</Text>
@@ -291,12 +283,29 @@ export default function ManualView({ navigation }) {
         </View>
       </View>
 
+      {/* Menú desplegable */}
+      {menuVisible && (
+        <View style={styles.menuDropdown}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setMenuVisible(false);
+              if (onLogout) onLogout();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.menuItemText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      )}
+
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
       <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
         keyboardShouldPersistTaps="handled"
+        scrollEnabled={true}
       >
         {/* Título */}
         <Text style={styles.panelTitle}>Asistencia Manual</Text>
@@ -316,7 +325,6 @@ export default function ManualView({ navigation }) {
 
         {/* ── BUSCADOR ───────────────────────────────────────────────── */}
         <View style={styles.searchWrap}>
-          <Text style={styles.searchIcon}>🔍</Text>
           <TextInput
             style={styles.searchInput}
             placeholder="Search student name..."
@@ -330,7 +338,7 @@ export default function ManualView({ navigation }) {
         {/* ── LISTA DE ESTUDIANTES ───────────────────────────────────── */}
         {estudiantesFiltrados.length === 0 ? (
           <View style={styles.emptyState}>
-            <Text style={styles.emptyIcon}>📋</Text>
+            <Image source={planning} style={{ width: 100, height: 100, tintColor: COLORS.textMuted }} />
             <Text style={styles.emptyText}>
               {claseSeleccionada
                 ? busqueda
@@ -345,12 +353,13 @@ export default function ManualView({ navigation }) {
             keyExtractor={(item) => item.id}
             renderItem={renderEstudiante}
             scrollEnabled={false}
+            nestedScrollEnabled={true}
             ItemSeparatorComponent={() => <View style={{ height: 10 }} />}
           />
         )}
 
         {/* Espacio para el botón flotante */}
-        <View style={{ height: 80 }} />
+        <View style={{ height: 30 }} />
       </ScrollView>
 
       {/* ── BOTÓN GUARDAR ASISTENCIA (fijo sobre la nav bar) ────────── */}
@@ -361,7 +370,6 @@ export default function ManualView({ navigation }) {
           activeOpacity={0.85}
           accessibilityLabel="Guardar asistencia"
         >
-          <Text style={styles.btnGuardarIcon}>💾</Text>
           <Text style={styles.btnGuardarText}>GUARDAR ASISTENCIA</Text>
         </TouchableOpacity>
       </View>
@@ -421,6 +429,8 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.white,
+    flexDirection: 'column',
+    position: 'relative',
   },
   scrollView: {
     flex: 1,
@@ -429,7 +439,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 20,
-    paddingBottom: 16,
+    paddingBottom: 180,
   },
 
   // Header
@@ -455,6 +465,35 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   avatarWrapText: { fontSize: 20 },
+
+  // Menú desplegable
+  menuDropdown: {
+    position: "absolute",
+    top: 48,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.navBorder,
+    zIndex: 100,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  menuItemIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.text,
+  },
 
   // Título
   panelTitle: {
@@ -494,7 +533,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     marginBottom: 16,
   },
-  searchIcon:  { fontSize: 16, marginRight: 8 },
   searchInput: {
     flex: 1,
     paddingVertical: 12,
@@ -577,8 +615,16 @@ const styles = StyleSheet.create({
   // Botón guardar
   guardarWrap: {
     paddingHorizontal: 16,
-    paddingVertical: 10,
+    paddingVertical: 12,
+    paddingBottom: 70,
     backgroundColor: COLORS.background,
+    borderTopWidth: 1,
+    borderTopColor: COLORS.navBorder,
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    zIndex: 100,
   },
   btnGuardar: {
     backgroundColor: COLORS.primary,
@@ -589,7 +635,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     gap: 10,
   },
-  btnGuardarIcon: { fontSize: 16 },
   btnGuardarText: {
     color: COLORS.white, fontWeight: "700",
     fontSize: 14, letterSpacing: 1.5,
@@ -602,7 +647,7 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.white,
     borderRadius: 12,
   },
-  emptyIcon: { fontSize: 36, marginBottom: 10 },
+  
   emptyText: {
     fontSize: 13, color: COLORS.textMuted,
     textAlign: "center", paddingHorizontal: 20,

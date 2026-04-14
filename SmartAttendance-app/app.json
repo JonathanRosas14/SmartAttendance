@@ -20,14 +20,27 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "permissions": [
+        "android.permission.READ_EXTERNAL_STORAGE",
+        "android.permission.WRITE_EXTERNAL_STORAGE",
+        "android.permission.CAMERA"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "plugins": [
       "@react-native-community/datetimepicker",
-      "expo-sharing"
+      "expo-sharing",
+      "expo-media-library",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Necesitamos acceso a la cámara para escanear códigos QR",
+          "recordAudioPermission": false
+        }
+      ]
     ]
   }
 }

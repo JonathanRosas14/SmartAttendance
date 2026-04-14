@@ -36,7 +36,10 @@ import {
   SafeAreaView,
   Modal,
   ActivityIndicator,
+  Image
 } from "react-native";
+
+import qr from "../assets/icons/qr.png";
 
 import {
   obtenerClases,
@@ -72,15 +75,6 @@ const COLORS = {
 // ─── Duración del QR en segundos ─────────────────────────────────────────────
 const QR_DURACION_SEG = 60;
 
-// ─── Tabs de navegación ───────────────────────────────────────────────────────
-const NAV_TABS = [
-  { id: "classes",  label: "CLASSES",  icon: "📚" },
-  { id: "students", label: "STUDENTS", icon: "👥" },
-  { id: "qrscan",   label: "QR SCAN",  icon: "⊞"  },
-  { id: "manual",   label: "MANUAL",   icon: "📋" },
-  { id: "export",   label: "EXPORT",   icon: "↑"  },
-];
-
 const ROUTES = {
   classes:  "ProfesorView",
   students: "EstudianteView",
@@ -90,7 +84,8 @@ const ROUTES = {
 };
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function QRView({ navigation }) {
+export default function QRView({ setPantalla, onLogout }) {
+  const [menuVisible, setMenuVisible] = useState(false);
 
   // ── Clases ────────────────────────────────────────────────────────────────
   const [clases] = useState(() => obtenerClases());
@@ -120,32 +115,49 @@ export default function QRView({ navigation }) {
 
   // ── Generar QR ────────────────────────────────────────────────────────────
   const handleGenerarQR = useCallback(() => {
-  if (!claseSeleccionada) {
-    Alert.alert("Error", "Selecciona una clase primero.");
-    return;
-  }
+    if (!claseSeleccionada) {
+      Alert.alert("Error", "Selecciona una clase primero.");
+      return;
+    }
 
-  setGenerando(true);
+    setGenerando(true);
 
-  // Eliminar el setTimeout o reducirlo para mejor UX
-  const resultado = generarQRParaClase(claseSeleccionada.id, 120);
+    try {
+      const resultado = generarQRParaClase(claseSeleccionada.id, QR_DURACION_SEG);
 
-  if (!resultado.ok) {
-    Alert.alert("Error", resultado.mensaje);
-    setGenerando(false);
-    return;
-  }
+      if (!resultado.ok) {
+        Alert.alert("Error", resultado.mensaje);
+        setGenerando(false);
+        return;
+      }
 
-  setGenerando(false);
+      // Guardar el QR en estado
+      setQrData(resultado.qr);
+      setExpirado(false);
+      setSegundos(QR_DURACION_SEG);
+      setGenerando(false);
 
-  // Navegar inmediatamente
-  navigation.navigate("ResultadoView", {
-    qrData:      resultado.qr,
-    claseNombre: claseSeleccionada.nombre,
-    claseId:     claseSeleccionada.id,
-    expiracion:  Date.now() + 120 * 1000,
-  });
-}, [claseSeleccionada, navigation]);
+      // Limpiar timer anterior si existe
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      // Iniciar cuenta regresiva
+      timerRef.current = setInterval(() => {
+        setSegundos((prev) => {
+          if (prev <= 1) {
+            setExpirado(true);
+            if (timerRef.current) clearInterval(timerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (error) {
+      console.error("Error al generar QR:", error);
+      Alert.alert("Error", "Hubo un error al generar el QR: " + error.message);
+      setGenerando(false);
+    }
+  }, [claseSeleccionada]);
 
   // ── Color del timer según tiempo restante ─────────────────────────────────
   const timerColor =
@@ -180,7 +192,11 @@ export default function QRView({ navigation }) {
 
       {/* ── HEADER ────────────────────────────────────────────────────── */}
       <View style={styles.header}>
-        <TouchableOpacity style={styles.menuBtn} accessibilityLabel="Menú">
+        <TouchableOpacity 
+          style={styles.menuBtn} 
+          accessibilityLabel="Menú"
+          onPress={() => setMenuVisible(!menuVisible)}
+        >
           <Text style={styles.menuIcon}>☰</Text>
         </TouchableOpacity>
         <Text style={styles.headerTitle}>SmartAttendance</Text>
@@ -188,6 +204,22 @@ export default function QRView({ navigation }) {
           <Text style={styles.avatarWrapText}>👤</Text>
         </View>
       </View>
+
+      {/* Menú desplegable */}
+      {menuVisible && (
+        <View style={styles.menuDropdown}>
+          <TouchableOpacity
+            style={styles.menuItem}
+            onPress={() => {
+              setMenuVisible(false);
+              if (onLogout) onLogout();
+            }}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.menuItemText}>Cerrar sesión</Text>
+          </TouchableOpacity>
+        </View>
+      )}
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
       <ScrollView
@@ -227,7 +259,7 @@ export default function QRView({ navigation }) {
               <ActivityIndicator color={COLORS.white} size="small" />
             ) : (
               <>
-                <Text style={styles.btnGenerarIcon}>⊞</Text>
+                <Image source={qr} style={{ width: 24, height: 24, tintColor: COLORS.white }} />
                 <Text style={styles.btnGenerarText}>GENERAR QR</Text>
               </>
             )}
@@ -287,7 +319,6 @@ export default function QRView({ navigation }) {
           {/* ── QR EXPIRADO ───────────────────────────────────────────── */}
           {expirado && (
             <View style={styles.expiradoWrap}>
-              <Text style={styles.expiradoIcon}>⏰</Text>
               <Text style={styles.expiradoTitulo}>QR Expirado</Text>
               <Text style={styles.expiradoSub}>
                 Genera un nuevo QR para continuar
@@ -297,7 +328,7 @@ export default function QRView({ navigation }) {
                 onPress={handleGenerarQR}
                 activeOpacity={0.85}
               >
-                <Text style={styles.btnRegenerarText}>🔄  REGENERAR QR</Text>
+                <Text style={styles.btnRegenerarText}>REGENERAR QR</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -368,7 +399,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     paddingHorizontal: 16,
     paddingTop: 24,
-    paddingBottom: 24,
+    paddingBottom: 180,
   },
 
   // Header
@@ -394,6 +425,35 @@ const styles = StyleSheet.create({
     alignItems: "center", justifyContent: "center",
   },
   avatarWrapText: { fontSize: 20 },
+
+  // Menú desplegable
+  menuDropdown: {
+    position: "absolute",
+    top: 48,
+    left: 0,
+    right: 0,
+    backgroundColor: COLORS.white,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.navBorder,
+    zIndex: 100,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: COLORS.border,
+  },
+  menuItemIcon: {
+    fontSize: 18,
+    marginRight: 12,
+  },
+  menuItemText: {
+    fontSize: 15,
+    fontWeight: "600",
+    color: COLORS.text,
+  },
 
   // Card principal
   card: {
@@ -449,7 +509,6 @@ const styles = StyleSheet.create({
   btnGenerandoDisabled: {
     opacity: 0.7,
   },
-  btnGenerarIcon: { fontSize: 18, color: COLORS.white },
   btnGenerarText: {
     color: COLORS.white, fontWeight: "700",
     fontSize: 14, letterSpacing: 1.5,
