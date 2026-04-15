@@ -1,27 +1,23 @@
 // utils/storage.js
-// Sistema de persistencia con localStorage para React Native Web
-// y AsyncStorage para dispositivos móviles
+// Sistema de persistencia de datos - funciona en web y en dispositivos móviles
+// En web usa localStorage, en móvil usa AsyncStorage de React Native
 
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const isWeb = Platform.OS === 'web';
 
-/**
- * Guardar datos en persistencia (localStorage para web, AsyncStorage para móvil)
- * @param {String} key - Clave
- * @param {any} data - Datos a guardar
- * @returns {Promise<void>}
- */
+// Guarda datos en el almacenamiento local (ya sea localStorage o AsyncStorage)
+// La app puede recuperar estos datos aunque el usuario cierre la aplicación
 export async function guardarEnStorage(key, data) {
   try {
     const jsonData = JSON.stringify(data);
     
     if (isWeb) {
-      // Web: usar localStorage
+      // En navegador usamos localStorage
       localStorage.setItem(key, jsonData);
     } else {
-      // Móvil: usar AsyncStorage
+      // En dispositivos móviles usamos AsyncStorage
       await AsyncStorage.setItem(key, jsonData);
     }
     
@@ -31,24 +27,18 @@ export async function guardarEnStorage(key, data) {
   }
 }
 
-/**
- * Obtener datos desde persistencia
- * @param {String} key - Clave
- * @param {any} defaultValue - Valor por defecto si no existe
- * @returns {Promise<any>}
- */
+// Obtiene datos que guardamos anteriormente. Si no existen, retorna el valor por defecto
 export async function obtenerDelStorage(key, defaultValue = null) {
   try {
     let jsonData;
     
     if (isWeb) {
-      // Web: usar localStorage
       jsonData = localStorage.getItem(key);
     } else {
-      // Móvil: usar AsyncStorage
       jsonData = await AsyncStorage.getItem(key);
     }
     
+    // Si no encontramos nada, devolvemos el valor por defecto
     if (jsonData === null) {
       return defaultValue;
     }
@@ -60,11 +50,7 @@ export async function obtenerDelStorage(key, defaultValue = null) {
   }
 }
 
-/**
- * Eliminar datos desde persistencia
- * @param {String} key - Clave
- * @returns {Promise<void>}
- */
+// Borra un elemento específico del almacenamiento
 export async function eliminarDelStorage(key) {
   try {
     if (isWeb) {
@@ -78,10 +64,7 @@ export async function eliminarDelStorage(key) {
   }
 }
 
-/**
- * Limpiar todo el storage
- * @returns {Promise<void>}
- */
+// Limpia todo el almacenamiento - útil si queremos resetear la app
 export async function limpiarStorage() {
   try {
     if (isWeb) {

@@ -1,11 +1,7 @@
-/**
- * EstudianteMainView.js
- * Panel Principal del Estudiante — SmartAttendance
- * 
- * Navegación inferior con:
- *  - Escanear QR
- *  - Historial de Asistencias
- */
+// EstudianteMainView.js
+// Panel principal del estudiante cuando inicia sesión
+// Tiene dos tabs: uno para escanear QR y otro para ver historial de asistencias
+// Los estudiantes pueden navegar entre estas dos secciones usando botones en la parte inferior
 
 import React, { useState } from "react";
 import {
@@ -22,6 +18,7 @@ import {
 import qr from "../assets/icons/qr.png";
 import plannig from "../assets/icons/planning.png";
 
+// Importamos los componentes de escaneo y historial
 import EscanearQRView from "./EscanearQRViewStudent";
 import HistorialView from "./HistorialViewStudent";
 
@@ -38,9 +35,11 @@ const COLORS = {
 };
 
 export default function EstudianteMainView({ usuario, onLogout }) {
-  const [pantalla, setPantalla] = useState("qr"); // "qr" | "historial"
+  // Pantalla actual que se está viendo (qr o historial)
+  const [pantalla, setPantalla] = useState("qr");
   const [menuVisible, setMenuVisible] = useState(false);
 
+  // Función para renderizar la pantalla correcta según la tab seleccionada
   const renderPantalla = () => {
     switch (pantalla) {
       case "qr":
@@ -70,10 +69,10 @@ export default function EstudianteMainView({ usuario, onLogout }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.card} barStyle="dark-content" />
 
-      {/* Contenido de pantalla */}
+      {/* Contenido de la pantalla actual */}
       <View style={styles.contentContainer}>{renderPantalla()}</View>
 
-      {/* Bottom Navigation */}
+      {/* Barra de navegación inferior con tabs */}
       <View style={styles.navBar}>
         <TouchableOpacity
           style={styles.navItem}

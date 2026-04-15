@@ -1,27 +1,8 @@
-/**
- * QRView.js
- * Generar QR de Asistencia — SmartAttendance
- *
- * Funcionalidades:
- *  - Seleccionar clase (dropdown)
- *  - Generar QR dinámico para la clase seleccionada
- *  - Mostrar QR generado con cuenta regresiva de expiración
- *  - Regenerar QR cuando expire
- *
- * Conexión al backend:
- *  - obtenerClases        → lista de clases para el selector
- *  - generarQRParaClase   → genera el string QR con token y expiración
- *
- * ⚠️  REQUERIMIENTOS PARA EL BACKEND:
- *  Para mostrar el QR como imagen necesitamos react-native-qrcode-svg.
- *  Pídele a tu compañero que instale:
- *
- *     npx expo install react-native-svg
- *     npm install react-native-qrcode-svg
- *
- *  Si no se puede instalar, el componente muestra el string QR en texto
- *  como fallback hasta que esté disponible.
- */
+// QRView.js
+// Pantalla para generar QR dinámicos de asistencia
+// El profesor selecciona una clase y presiona un botón para generar un nuevo QR
+// El QR incluye un token único y una hora de expiración (por defecto 60 segundos)
+// Los estudiantes escanearán este QR con sus celulares para registrar asistencia
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -41,12 +22,13 @@ import {
 
 import qr from "../assets/icons/qr.png";
 
+// Importamos las funciones para obtener clases y generar QR
 import {
   obtenerClases,
   generarQRParaClase,
 } from "../controllers/asistenciaController";
 
-// Intentamos importar QRCode — si no está instalado no rompe la app
+// Intentamos importar la librería QR. Si no está instalada, el componente sigue funcionando
 let QRCode = null;
 try {
   QRCode = require("react-native-qrcode-svg").default;
@@ -54,7 +36,7 @@ try {
   QRCode = null;
 }
 
-// ─── Paleta de colores ────────────────────────────────────────────────────────
+// Paleta de colores
 const COLORS = {
   primary:    "#1A3A6B",
   accent:     "#3B82F6",
@@ -72,7 +54,7 @@ const COLORS = {
   orange:     "#F97316",
 };
 
-// ─── Duración del QR en segundos ─────────────────────────────────────────────
+// Los QR expiran después de este tiempo (en segundos)
 const QR_DURACION_SEG = 60;
 
 const ROUTES = {
@@ -83,18 +65,17 @@ const ROUTES = {
   export:   "ExportView",
 };
 
-// ─── Componente principal ─────────────────────────────────────────────────────
 export default function QRView({ setPantalla, onLogout }) {
   const [menuVisible, setMenuVisible] = useState(false);
 
-  // ── Clases ────────────────────────────────────────────────────────────────
+  // Clases disponibles
   const [clases] = useState(() => obtenerClases());
   const [claseSeleccionada, setClaseSeleccionada] = useState(
     () => obtenerClases()[0] || null
   );
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
-  // ── Estado del QR ─────────────────────────────────────────────────────────
+  // Estado del QR generado
   const [qrData,      setQrData]      = useState(null);   // string JSON del QR
   const [generando,   setGenerando]   = useState(false);
   const [segundos,    setSegundos]    = useState(0);       // cuenta regresiva

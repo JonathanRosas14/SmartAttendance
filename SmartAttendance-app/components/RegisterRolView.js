@@ -1,11 +1,6 @@
-/**
- * RegisterView.js
- * Selección de Rol — SmartAttendance
- *
- * Funcionalidades:
- *  - Mostrar dos opciones: Estudiante o Profesor
- *  - Al seleccionar redirige al LoginView con el rol preseleccionado
- */
+// RegisterRolView.js
+// Pantalla de selección de rol para nuevos usuarios
+// El usuario elige si es estudiante o profesor, y luego se le envía al formulario de registro
 
 import React from "react";
 import {
@@ -44,7 +39,7 @@ export default function RegisterRolView({ onRegistroExitoso, onVolverLogin }) {
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        {/* ── ENCABEZADO ─────────────────────────────────────────── */}
+        {/* Encabezado con logo y título */}
         <View style={styles.headerArea}>
           <View style={styles.logoWrap}>
             <Text style={styles.logoIcon}>🏛</Text>
@@ -52,7 +47,7 @@ export default function RegisterRolView({ onRegistroExitoso, onVolverLogin }) {
           <Text style={styles.titulo}>Crear una cuenta</Text>
         </View>
 
-        {/* ── CARD ESTUDIANTE ────────────────────────────────────── */}
+        {/* Card para elegir rol de estudiante */}
         <View style={styles.card}>
           <View style={[styles.rolIconWrap, { backgroundColor: COLORS.iconBg }]}>
             <Image source={school} style={{
@@ -62,6 +57,7 @@ export default function RegisterRolView({ onRegistroExitoso, onVolverLogin }) {
             }} />
           </View>
           <Text style={styles.rolNombre}>Estudiante</Text>
+          {/* Al presionar, reporta que eligió estudiante y va al formulario */}
           <TouchableOpacity
             style={styles.seleccionarBtn}
             onPress={() => onRegistroExitoso("estudiante")}
@@ -72,7 +68,7 @@ export default function RegisterRolView({ onRegistroExitoso, onVolverLogin }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── CARD PROFESOR ──────────────────────────────────────── */}
+        {/* Card para elegir rol de profesor */}
         <View style={styles.card}>
           <View style={[styles.rolIconWrap, { backgroundColor: COLORS.iconBgSoft }]}>
             <Image source={teacher} style={{
@@ -82,6 +78,7 @@ export default function RegisterRolView({ onRegistroExitoso, onVolverLogin }) {
             }} />
           </View>
           <Text style={styles.rolNombre}>Profesor</Text>
+          {/* Al presionar, reporta que eligió profesor y va al formulario */}
           <TouchableOpacity
             style={styles.seleccionarBtn}
             onPress={() => onRegistroExitoso("profesor")}
@@ -92,7 +89,7 @@ export default function RegisterRolView({ onRegistroExitoso, onVolverLogin }) {
           </TouchableOpacity>
         </View>
 
-        {/* ── FOOTER ─────────────────────────────────────────────── */}
+        {/* Footer con opción de volver al login */}
         <View style={styles.footer}>
           <Text style={styles.footerText}>
             ¿Ya tienes una cuenta?{" "}

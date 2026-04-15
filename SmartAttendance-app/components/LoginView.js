@@ -1,20 +1,7 @@
-/**
- * LoginView.js
- * Pantalla de Inicio de Sesión — SmartAttendance
- *
- * Funcionalidades:
- *  - Seleccionar perfil: Estudiante o Profesor
- *  - Ingresar correo institucional y contraseña
- *  - Redirige a ProfesorView si es profesor
- *  - Redirige a EstudianteView si es estudiante
- *
- * Conexión al backend:
- *  - login({ correo, contrasena, rol }) → valida credenciales
- *
- * Credenciales de prueba:
- *  Profesor  → profesor@universidad.edu  / 1234
- *  Estudiante→ estudiante@universidad.edu / 1234
- */
+// LoginView.js
+// Pantalla donde los usuarios inician sesión en la app
+// Los usuarios eligen si son estudiantes o profesores, luego ingresan sus credenciales
+// Si las credenciales son correctas, se dirigirán a su panel correspondiente
 
 import React, { useState } from "react";
 import {
@@ -38,9 +25,10 @@ import fingerprint from "../assets/icons/fingerprint.png";
 import verified from "../assets/icons/verified.png";
 import auction from "../assets/icons/auction.png";
 
-
+// Importamos la función login del controlador para validar credenciales
 import { login } from "../controllers/asistenciaController";
 
+// Paleta de colores consistente en toda la app
 const COLORS = {
   primary:      "#1A3A6B",
   primaryLight: "#2454A0",
@@ -56,12 +44,14 @@ const COLORS = {
 };
 
 export default function LoginView({ onLoginExitoso, onIrAlRegistro, rolInicial }) {
-  const [rol, setRol]               = useState(rolInicial || "profesor"); // Pre-selecciona rol si viene del registro
+  // Estado para guardar el rol seleccionado (estudiante o profesor)
+  const [rol, setRol]               = useState(rolInicial || "profesor");
   const [correo, setCorreo]         = useState("");
   const [contrasena, setContrasena] = useState("");
   const [mostrarPass, setMostrarPass] = useState(false);
   const [cargando, setCargando]     = useState(false);
 
+  // Cuando el usuario presiona login, validamos sus credenciales
   const handleLogin = () => {
     if (!correo.trim() || !contrasena.trim()) {
       Alert.alert("Error", "Ingresa tu correo y contraseña.");
@@ -70,15 +60,17 @@ export default function LoginView({ onLoginExitoso, onIrAlRegistro, rolInicial }
 
     setCargando(true);
 
-    // Simular pequeño delay de "autenticación"
+    // Simulamos un pequeño delay para darle sensación de que está procesando
     setTimeout(() => {
+      // Llamamos a la función login del controlador para verificar credenciales
       const resultado = login({ correo: correo.trim(), contrasena, rol });
       setCargando(false);
 
       if (resultado.ok) {
-        // Pasar el usuario y su rol al App.js para redirigir
+        // Si el login fue exitoso, pasamos el usuario al App.js para que lo redirija
         onLoginExitoso(resultado.usuario);
       } else {
+        // Si las credenciales son incorrectas, mostramos un error
         Alert.alert("Acceso denegado", resultado.mensaje);
       }
     }, 500);
@@ -97,7 +89,6 @@ export default function LoginView({ onLoginExitoso, onIrAlRegistro, rolInicial }
           keyboardShouldPersistTaps="handled"
           showsVerticalScrollIndicator={false}
         >
-          {/* ── LOGO Y TÍTULO ─────────────────────────────────────── */}
           <View style={styles.logoArea}>
             <View style={styles.logoWrap}>
               <Text style={styles.logoIcon}>🏛</Text>

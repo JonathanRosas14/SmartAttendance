@@ -1,11 +1,7 @@
-/**
- * HistorialView.js
- * Pestaña Historial de Asistencias — Estudiante
- *
- * Conexión al backend:
- *  - obtenerHistorialEstudiante  → historial de asistencias del estudiante
- *  - obtenerEstudiantePorCorreo  → obtener datos del estudiante logueado
- */
+// HistorialViewStudent.js
+// Muestra el historial de todas las asistencias registradas del estudiante
+// Cada registro muestra el nombre de la clase, fecha y hora
+// El historial está ordenado de lo más reciente a lo más antiguo
 
 import React, { useState, useEffect } from "react";
 import {
@@ -23,6 +19,7 @@ import {
 
 import planning from "../assets/icons/planning.png";
 
+// Importamos funciones para obtener el historial del estudiante
 import {
   obtenerHistorialEstudiante,
   obtenerEstudiantePorCorreo,
@@ -40,7 +37,8 @@ const COLORS = {
   navBorder:  "#E2E8F0",
 };
 
-// Formatea "YYYY-MM-DD" → "15 OCT, 2023"
+// Función auxiliar para convertir fechas de formato YYYY-MM-DD a un formato más legible
+// Por ejemplo: "2025-04-14" se convierte a "14 ABR, 2025"
 function formatearFecha(fechaStr = "") {
   try {
     const [y, m, d] = fechaStr.split("-").map(Number);
@@ -53,13 +51,16 @@ function formatearFecha(fechaStr = "") {
 }
 
 export default function HistorialView({ usuario, menuVisible, setMenuVisible, onLogout }) {
+  // Guardamos los datos del estudiante y su historial
   const [estudiante, setEstudiante] = useState(null);
   const [historial, setHistorial]   = useState([]);
 
+  // Cargar datos del estudiante y su historial cuando se monta el componente
   useEffect(() => {
     const est = obtenerEstudiantePorCorreo(usuario.correo);
     setEstudiante(est);
     if (est) {
+      // Obtener todas las asistencias registradas del estudiante
       setHistorial(obtenerHistorialEstudiante(est.id));
     }
   }, [usuario]);
@@ -68,7 +69,7 @@ export default function HistorialView({ usuario, menuVisible, setMenuVisible, on
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      {/* ── HEADER ──────────────────────────────────────────────── */}
+      {/* Header con título y botón de menú */}
       <View style={styles.header}>
         <TouchableOpacity 
           style={styles.menuBtn}

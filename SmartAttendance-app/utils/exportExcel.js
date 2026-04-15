@@ -1,23 +1,18 @@
 // utils/exportExcel.js
-// Exportar asistencias a Excel con formato: Nombre, ID, Teléfono, Asistió, No Asistió
+// Funciones para exportar reportes de asistencia a archivos CSV
+// Los archivos se pueden descargar en web o compartir en dispositivos móviles
 
 import { Platform } from 'react-native';
 import * as FileSystem from 'expo-file-system/legacy';
 import * as Sharing from 'expo-sharing';
 import * as MediaLibrary from 'expo-media-library';
 
-/**
- * Generar CSV formateado para Excel
- * @param {Array} estudiantesClase - Array de estudiantes de la clase
- * @param {Array} asistenciasClase - Array de registros de asistencia
- * @param {String} nombreClase - Nombre de la clase
- * @returns {String} CSV formateado
- */
+// Función auxiliar para generar el contenido CSV formateado
+// Crea un reporte con encabezados y las filas de datos de estudiantes
 function generarCSV(estudiantesClase, asistenciasClase, nombreClase) {
-  // Encabezados
   const encabezados = ['Nombre', 'ID', 'Teléfono', 'Asistió', 'No Asistió'];
   
-  // Crear filas con datos de estudiantes
+  // Para cada estudiante, verificamos si asistió (hay un registro de asistencia)
   const filas = estudiantesClase.map((estudiante) => {
     const asistio = asistenciasClase.some(
       (a) => a.estudianteId === estudiante.id
@@ -32,7 +27,7 @@ function generarCSV(estudiantesClase, asistenciasClase, nombreClase) {
     ];
   });
 
-  // Construir CSV
+  // Construir CSV con encabezados y datos
   let csv = `REPORTE DE ASISTENCIA - ${nombreClase}\n`;
   csv += `Fecha de generación: ${new Date().toLocaleDateString()}\n\n`;
   csv += encabezados.join(',') + '\n';
@@ -41,14 +36,7 @@ function generarCSV(estudiantesClase, asistenciasClase, nombreClase) {
   return csv;
 }
 
-/**
- * Exportar asistencias de una clase a un archivo Excel (CSV)
- * @param {String} claseId - ID de la clase
- * @param {String} nombreClase - Nombre de la clase
- * @param {Array} estudiantesClase - Array de estudiantes de la clase
- * @param {Array} asistenciasClase - Array de registros de asistencia
- * @returns {Promise<void>}
- */
+// Exportar asistencia simple: mostrar si cada estudiante asistió o no
 export async function exportarAsistenciaExcel(
   claseId,
   nombreClase,
@@ -56,14 +44,13 @@ export async function exportarAsistenciaExcel(
   asistenciasClase
 ) {
   try {
-    // Generar CSV
     const csv = generarCSV(estudiantesClase, asistenciasClase, nombreClase);
 
-    // Crear nombre del archivo
+    // Crear nombre del archivo con la fecha de hoy
     const fecha = new Date().toISOString().split('T')[0];
     const nombreArchivo = `Asistencia_${nombreClase.replace(/\s+/g, '_')}_${fecha}.csv`;
 
-    // En la web, descargar directamente
+    // En navegador web, descargamos directamente
     if (Platform.OS === 'web') {
       const elemento = document.createElement('a');
       elemento.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
@@ -75,15 +62,15 @@ export async function exportarAsistenciaExcel(
       return { ok: true, mensaje: 'Asistencia exportada exitosamente' };
     }
 
-    // En dispositivos móviles (Android/iOS)
+    // En dispositivos móviles, crear archivo en el sistema
     const rutaArchivo = FileSystem.documentDirectory + nombreArchivo;
 
-    // Escribir archivo
+    // Escribir el contenido CSV en el archivo
     await FileSystem.writeAsStringAsync(rutaArchivo, csv, {
       encoding: 'utf8',
     });
 
-    // Intentar guardar en Galería/Descargas primero (Android)
+    // Intentar guardar en la galería/descargas del dispositivo
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status === 'granted') {
@@ -95,7 +82,7 @@ export async function exportarAsistenciaExcel(
       console.log('ℹ️ MediaLibrary no disponible, intentando Sharing...');
     }
 
-    // Compartir archivo (fallback)
+    // Si eso no funciona, compartir el archivo usando la opción de compartir del sistema
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(rutaArchivo, {
         mimeType: 'text/csv',
@@ -113,14 +100,8 @@ export async function exportarAsistenciaExcel(
   }
 }
 
-/**
- * Exportar asistencias por sesión/fecha
- * @param {String} nombreClase - Nombre de la clase
- * @param {Array} sesiones - Array de sesiones con fecha
- * @param {Array} estudiantes - Array de todos los estudiantes de la clase
- * @param {Array} asistencias - Array de todos los registros de asistencia
- * @returns {Promise<void>}
- */
+// Exportar asistencia con detalles por sesión/fecha
+// Muestra una columna para cada día de clase y marca asistencia por día
 export async function exportarAsistenciaPorSesion(
   nombreClase,
   sesiones,
@@ -128,13 +109,14 @@ export async function exportarAsistenciaPorSesion(
   asistencias
 ) {
   try {
-    // Encabezados
+    // Los encabezados incluyen el nombre del estudiante y una columna para cada sesión (fecha)
     const encabezados = ['Nombre', 'ID', 'Teléfono', ...sesiones.map((s) => s.fecha)];
 
-    // Crear filas
+    // Crear filas con los datos de cada estudiante
     const filas = estudiantes.map((est) => {
       const fila = [est.nombre, est.id, est.celular];
       
+      // Para cada sesión, verificar si el estudiante asistió
       sesiones.forEach((sesion) => {
         const asistio = asistencias.some(
           (a) =>
@@ -147,17 +129,16 @@ export async function exportarAsistenciaPorSesion(
       return fila;
     });
 
-    // Construir CSV
+    // Construir el CSV
     let csv = `REPORTE DETALLADO DE ASISTENCIA - ${nombreClase}\n`;
     csv += `Fecha de generación: ${new Date().toLocaleDateString()}\n\n`;
     csv += encabezados.join(',') + '\n';
     csv += filas.map((fila) => fila.map((celda) => `"${celda}"`).join(',')).join('\n');
 
-    // Crear nombre del archivo
     const fecha = new Date().toISOString().split('T')[0];
     const nombreArchivo = `Asistencia_Detallada_${nombreClase.replace(/\s+/g, '_')}_${fecha}.csv`;
 
-    // En la web, descargar directamente
+    // En web, descargar directamente
     if (Platform.OS === 'web') {
       const elemento = document.createElement('a');
       elemento.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
@@ -169,15 +150,14 @@ export async function exportarAsistenciaPorSesion(
       return { ok: true, mensaje: 'Asistencia detallada exportada correctamente' };
     }
 
-    // En dispositivos móviles
+    // En móvil, guardar archivo
     const rutaArchivo = FileSystem.documentDirectory + nombreArchivo;
 
-    // Escribir archivo
     await FileSystem.writeAsStringAsync(rutaArchivo, csv, {
       encoding: 'utf8',
     });
 
-    // Intentar guardar en Galería/Descargas primero (Android)
+    // Intentar guardar en galería
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status === 'granted') {
@@ -189,7 +169,7 @@ export async function exportarAsistenciaPorSesion(
       console.log('ℹ️ MediaLibrary no disponible, intentando Sharing...');
     }
 
-    // Compartir archivo (fallback)
+    // Compartir archivo
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(rutaArchivo, {
         mimeType: 'text/csv',
@@ -205,16 +185,13 @@ export async function exportarAsistenciaPorSesion(
   }
 }
 
-/**
- * Exportar todas las asistencias de todos los estudiantes
- * @param {Array} estudiantes - Array de todos los estudiantes
- * @param {Array} asistencias - Array de todos los registros
- * @returns {Promise<void>}
- */
+// Exportar un reporte general de asistencias de todos los estudiantes
+// Útil para ver un resumen total de asistencias sin detalles por fecha
 export async function exportarAsistenciaGeneral(estudiantes, asistencias) {
   try {
     const encabezados = ['Nombre', 'ID', 'Teléfono', 'Total Asistencias'];
 
+    // Para cada estudiante, contar cuántas asistencias registradas tiene
     const filas = estudiantes.map((est) => {
       const totalAsistencias = asistencias.filter(
         (a) => a.estudianteId === est.id
@@ -223,17 +200,16 @@ export async function exportarAsistenciaGeneral(estudiantes, asistencias) {
       return [est.nombre, est.id, est.celular, totalAsistencias];
     });
 
-    // Construir CSV  
+    // Construir el CSV
     let csv = `REPORTE GENERAL DE ASISTENCIAS\n`;
     csv += `Fecha de generación: ${new Date().toLocaleDateString()}\n\n`;
     csv += encabezados.join(',') + '\n';
     csv += filas.map((fila) => fila.map((celda) => `"${celda}"`).join(',')).join('\n');
 
-    // Crear nombre del archivo
     const fecha = new Date().toISOString().split('T')[0];
     const nombreArchivo = `Asistencia_General_${fecha}.csv`;
 
-    // En la web, descargar directamente
+    // En web, descargar directamente
     if (Platform.OS === 'web') {
       const elemento = document.createElement('a');
       elemento.setAttribute('href', 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv));
@@ -245,7 +221,7 @@ export async function exportarAsistenciaGeneral(estudiantes, asistencias) {
       return { ok: true, mensaje: 'Asistencias generales exportadas correctamente' };
     }
 
-    // En dispositivos móviles
+    // En móvil, guardar archivo
     const rutaArchivo = FileSystem.documentDirectory + nombreArchivo;
 
     // Escribir archivo
@@ -253,7 +229,7 @@ export async function exportarAsistenciaGeneral(estudiantes, asistencias) {
       encoding: 'utf8',
     });
 
-    // Intentar guardar en Galería/Descargas primero (Android)
+    // Intentar guardar en Galería/Descargas
     try {
       const { status } = await MediaLibrary.requestPermissionsAsync();
       if (status === 'granted') {
@@ -265,7 +241,7 @@ export async function exportarAsistenciaGeneral(estudiantes, asistencias) {
       console.log('ℹ️ MediaLibrary no disponible, intentando Sharing...');
     }
 
-    // Compartir archivo (fallback)
+    // Compartir archivo
     if (await Sharing.isAvailableAsync()) {
       await Sharing.shareAsync(rutaArchivo, {
         mimeType: 'text/csv',

@@ -1,4 +1,7 @@
 // utils/time.js
+// Funciones auxiliares para obtener la hora y fecha actual formateadas
+
+// Retorna la hora actual en formato HH:MM
 export function getCurrentTime() {
   const ahora = new Date();
   const horas = String(ahora.getHours()).padStart(2, "0");
@@ -6,6 +9,7 @@ export function getCurrentTime() {
   return `${horas}:${minutos}`;
 }
 
+// Retorna la fecha actual en formato YYYY-MM-DD
 export function getCurrentDate() {
   const ahora = new Date();
   const anio = ahora.getFullYear();
