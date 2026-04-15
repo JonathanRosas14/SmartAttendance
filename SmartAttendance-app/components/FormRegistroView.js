@@ -1,16 +1,7 @@
-/**
- * FormRegistroView.js
- * Formulario de Registro — SmartAttendance
- *
- * Funcionalidades:
- *  - Formulario de registro para Estudiante o Profesor
- *  - Campos cambian según el rol seleccionado
- *  - Al registrarse exitosamente redirige al Login con rol preseleccionado
- *
- * Conexión al backend:
- *  - registrarEstudiante({ nombre, id, celular, correo, contrasena })
- *  - registrarProfesor({ nombre, id, departamento, correo, contrasena })
- */
+// FormRegistroView.js
+// Formulario para que nuevos usuarios se registren en el sistema
+// El formulario cambia los campos según si es estudiante o profesor
+// Los estudiantes ingresan celular, los profesores ingresan departamento
 
 import React, { useState } from "react";
 import {
@@ -27,6 +18,7 @@ import {
   Alert,
 } from "react-native";
 
+// Importamos las funciones para registrar estudiantes y profesores
 import {
     login,
   registrarEstudiante,
@@ -47,13 +39,15 @@ const COLORS = {
 };
 
 export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin }) {
+  // Determinamos si es estudiante para mostrar/ocultar campos específicos
   const esEstudiante = rol === "estudiante";
 
+  // Form contiene todos los datos del usuarios según sea estudiante o profesor
   const [form, setForm] = useState({
     nombre:       "",
     id:           "",
-    celular:      "",       // solo estudiante
-    departamento: "",       // solo profesor
+    celular:      "",       // solo para estudiantes
+    departamento: "",       // solo para profesores
     correo:       "",
     contrasena:   "",
   });
@@ -61,10 +55,12 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
   const [mostrarPass, setMostrarPass] = useState(false);
   const [cargando, setCargando]       = useState(false);
 
+  // Función auxiliar para actualizar campos del formulario
   const actualizar = (campo, valor) => {
     setForm((prev) => ({ ...prev, [campo]: valor }));
   };
 
+  // Cuando el usuario presiona registrarse, validamos todos los campos
   const handleRegistro = () => {
     // Validar campos obligatorios
     if (!form.nombre.trim()) {
@@ -75,10 +71,12 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
       Alert.alert("Validación", `Por favor ingresa tu ${esEstudiante ? "ID de estudiante" : "ID de profesor"}.`);
       return;
     }
+    // Campo celular solo para estudiantes
     if (esEstudiante && !form.celular.trim()) {
       Alert.alert("Validación", "Por favor ingresa tu número de teléfono.");
       return;
     }
+    // Campo departamento solo para profesores
     if (!esEstudiante && !form.departamento.trim()) {
       Alert.alert("Validación", "Por favor ingresa tu departamento.");
       return;
@@ -87,6 +85,7 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
       Alert.alert("Validación", "Por favor ingresa tu correo institucional.");
       return;
     }
+    // Validar que sea un correo válido
     if (!form.correo.includes("@")) {
       Alert.alert("Validación", "Por favor ingresa un correo válido.");
       return;
@@ -95,6 +94,7 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
       Alert.alert("Validación", "Por favor ingresa una contraseña.");
       return;
     }
+    // La contraseña debe tener al menos 6 caracteres para seguridad
     if (form.contrasena.length < 6) {
       Alert.alert("Validación", "La contraseña debe tener al menos 6 caracteres.");
       return;

@@ -1,83 +1,68 @@
-    /**
-     * EstudianteView.js
-     * Gestión de Estudiantes — SmartAttendance
-     *
-     * Funcionalidades:
-     *  - Seleccionar clase (dropdown)
-     *  - Vincular nuevo estudiante (nombre, ID, teléfono)
-     *  - Listar estudiantes vinculados a la clase seleccionada
-     *
-     * Conexión al backend:
-     *  - obtenerClases            → lista de clases para elSelector
-     *  - agregarEstudiante        → vincular estudiante a clase
-     *  - obtenerEstudiantesPorClase → lista de estudiantes de la clase
-     *  - borrarEstudiante         → eliminar estudiante
-     *  - editarEstudiante         → editar estudiante
-     */
+// EstudianteView.js
+// Panel de gestión de estudiantes para el profesor
+// Aquí el profesor puede:
+//   - Seleccionar una clase
+//   - Ver todos los estudiantes vinculados a esa clase
+//   - Agregar nuevos estudiantes a la clase
+//   - Eliminar estudiantes que ya no pertenecen a la clase
 
-    import React, { useState, useCallback, useEffect } from "react";
-    import {
-    View,
-    Text,
-    TextInput,
-    TouchableOpacity,
-    FlatList,
-    StyleSheet,
-    ScrollView,
-    Alert,
-    Platform,
-    StatusBar,
-    SafeAreaView,
-    Modal,
-    Image
-    } from "react-native";
+import React, { useState, useCallback, useEffect } from "react";
+import {
+  View,
+  Text,
+  TextInput,
+  TouchableOpacity,
+  FlatList,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Platform,
+  StatusBar,
+  SafeAreaView,
+  Modal,
+  Image
+} from "react-native";
 
-    import trash from "../assets/icons/trash.png";
-    import user from "../assets/icons/user.png";
+import trash from "../assets/icons/trash.png";
+import user from "../assets/icons/user.png";
 
-    import {
-    obtenerClases,
-    agregarEstudiante,
-    obtenerEstudiantesPorClase,
-    borrarEstudiante,
-    } from "../controllers/asistenciaController";
+// Importamos las funciones CRUD para manejar estudiantes
+import {
+  obtenerClases,
+  agregarEstudiante,
+  obtenerEstudiantesPorClase,
+  borrarEstudiante,
+} from "../controllers/asistenciaController";
 
-    // ─── Paleta de colores (igual que ProfesorView) ───────────────────────────────
-    const COLORS = {
-    primary:      "#1A3A6B",
-    primaryLight: "#2454A0",
-    accent:       "#3B82F6",
-    background:   "#F0F4FA",
-    card:         "#FFFFFF",
-    inputBg:      "#F5F7FC",
-    iconBg:       "#DDE8F8",
-    text:         "#1A2B4A",
-    textMuted:    "#6B7A99",
-    border:       "#D8E2F0",
-    white:        "#FFFFFF",
-    navBorder:    "#E2E8F0",
-    error:        "#EF4444",
-    };
+// Paleta de colores (igual que en ProfesorView para consistencia)
+const COLORS = {
+  primary:      "#1A3A6B",
+  primaryLight: "#2454A0",
+  accent:       "#3B82F6",
+  background:   "#F0F4FA",
+  card:         "#FFFFFF",
+  inputBg:      "#F5F7FC",
+  iconBg:       "#DDE8F8",
+  text:         "#1A2B4A",
+  textMuted:    "#6B7A99",
+  border:       "#D8E2F0",
+  white:        "#FFFFFF",
+  navBorder:    "#E2E8F0",
+  error:        "#EF4444",
+};
 
-    // Colores para los avatares de iniciales (igual al diseño)
-    const AVATAR_COLORS = [
-    { bg: "#DDE8F8", text: "#1A3A6B" },   // azul claro
-    { bg: "#FDE8E8", text: "#9B1C1C" },   // rojo claro
-    { bg: "#E8F0FD", text: "#1E40AF" },   // azul suave
-    { bg: "#FEF3C7", text: "#92400E" },   // amarillo
-    { bg: "#D1FAE5", text: "#065F46" },   // verde
-    { bg: "#EDE9FE", text: "#5B21B6" },   // morado
-    ];
+// Colores para los avatares de iniciales (cada estudiante tiene un color diferente)
+const AVATAR_COLORS = [
+  { bg: "#DDE8F8", text: "#1A3A6B" },   // azul
+  { bg: "#FDE8E8", text: "#9B1C1C" },   // rojo
+  { bg: "#E8F0FD", text: "#1E40AF" },   // azul oscuro
+  { bg: "#FEF3C7", text: "#92400E" },   // amarillo
+  { bg: "#D1FAE5", text: "#065F46" },   // verde
+  { bg: "#EDE9FE", text: "#5B21B6" },   // morado
+];
 
-    /** Obtiene las iniciales de un nombre */
-    function getIniciales(nombre = "") {
-    const partes = nombre.trim().split(" ").filter(Boolean);
-    if (partes.length === 0) return "?";
-    if (partes.length === 1) return partes[0][0].toUpperCase();
-    return (partes[0][0] + partes[1][0]).toUpperCase();
-    }
-
-    /** Elige un color de avatar determinista según el ID */
+// Función para obtener las iniciales del nombre de un estudiante
+function getIniciales(nombre = "") {
     function getAvatarColor(id = "") {
     const sum = id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
     return AVATAR_COLORS[sum % AVATAR_COLORS.length];

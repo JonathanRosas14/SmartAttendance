@@ -1,32 +1,7 @@
-/**
- * ResultadoView.js
- * Vista del QR Generado — SmartAttendance
- *
- * Se muestra después de presionar "GENERAR QR" en QRView.
- * Recibe por params de navegación:
- *   - qrData     : string JSON del QR generado
- *   - claseNombre: nombre de la clase
- *   - claseId    : ID de la clase
- *   - expiracion : timestamp de expiración (Date.now() + segundos * 1000)
- *
- * Funcionalidades:
- *  - Muestra el QR generado en grande
- *  - Cuenta regresiva MM:SS hasta expiración
- *  - Botón "REFRESH CODIGO" regenera el QR sin salir de la vista
- *
- * ⚠️  REQUERIMIENTOS:
- *  Instalar las librerías del QR si aún no están:
- *    npx expo install react-native-svg
- *    npm install react-native-qrcode-svg
- *
- *  En QRView.js, al presionar GENERAR QR navega así:
- *    navigation.navigate("ResultadoView", {
- *      qrData:      resultado.qr,
- *      claseNombre: claseSeleccionada.nombre,
- *      claseId:     claseSeleccionada.id,
- *      expiracion:  Date.now() + 60 * 1000,
- *    });
- */
+// ResultadoView.js
+// Muestra el QR generado en grande con una cuenta regresiva de expiración
+// El profesor puede ver claramente el QR que generó y los estudiantes lo escanean desde aquí
+// Tiene un botón para regenerar un nuevo QR si el actual expiró o si el profesor lo necesita
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
@@ -40,9 +15,10 @@ import {
   Alert,
 } from "react-native";
 
+// Importamos la función para generar nuevos QR
 import { generarQRParaClase } from "../controllers/asistenciaController";
 
-// Intentamos importar QRCode
+// Intentamos importar la librería para mostrar QR como imagen
 let QRCode = null;
 try {
   QRCode = require("react-native-qrcode-svg").default;
@@ -50,7 +26,7 @@ try {
   QRCode = null;
 }
 
-// ─── Paleta de colores ────────────────────────────────────────────────────────
+// Paleta de colores
 const COLORS = {
   primary:    "#1A3A6B",
   accent:     "#3B82F6",
@@ -65,12 +41,13 @@ const COLORS = {
   green:      "#16A34A",
   orange:     "#F97316",
   red:        "#DC2626",
-  qrBg:       "#1A1A2E",   // fondo oscuro del QR como en el diseño
+  qrBg:       "#1A1A2E",   // fondo oscuro para el QR como en el diseño
 };
 
-const QR_DURACION_SEG = 120; // 2 minutos como muestra el diseño (01:58)
+// Los QR tienen una duración de 2 minutos
+const QR_DURACION_SEG = 120;
 
-// ─── Tabs de navegación ───────────────────────────────────────────────────────
+// Tabs de navegación (para referencia)
 const NAV_TABS = [
   { id: "classes",  label: "CLASSES",  icon: "📚" },
   { id: "students", label: "STUDENTS", icon: "👥" },

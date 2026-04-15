@@ -1,12 +1,7 @@
-/**
- * EscanearQRViewStudent.js
- * Escanear QR de Asistencia — Estudiante
- *
- * Funcionalidades:
- *  - Abrir cámara para escanear QR
- *  - Validar QR y pertenencia a clase
- *  - Registrar asistencia automáticamente
- */
+// EscanearQRViewStudent.js
+// Pantalla donde el estudiante escanea QR de asistencia
+// Abre la cámara, lee el QR, valida que sea correcto, y registra la asistencia automáticamente
+// Si todo va bien, muestra un mensaje de confirmación
 
 import React, { useState, useEffect, useRef } from "react";
 import {
@@ -23,11 +18,13 @@ import {
   ScrollView,
 } from "react-native";
 
+// Importamos las funciones de cámara de expo
 import { useCameraPermissions } from "expo-camera";
 import { CameraView } from "expo-camera";
 
 import qr from "../assets/icons/qr.png";
 
+// Importamos las funciones del controlador para registrar asistencia
 import {
   registrarAsistenciaQRCompleto,
   obtenerEstudiantePorCorreo,
@@ -49,17 +46,23 @@ const COLORS = {
 };
 
 export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVisible, onLogout }) {
+  // Guardamos los datos del estudiante una vez que se carga
   const [estudiante, setEstudiante] = useState(null);
+  // Controla si la cámara está abierta
   const [camaraAbierta, setCamaraAbierta] = useState(false);
   const [cargando, setCargando] = useState(false);
+  // Permisos de cámara del dispositivo
   const [permission, requestPermission] = useCameraPermissions();
+  // Ref para evitar procesar múltiples escaneos al mismo tiempo
   const scannedRef = useRef(false);
 
+  // Cargar datos del estudiante cuando se monta el componente
   useEffect(() => {
     const est = obtenerEstudiantePorCorreo(usuario.correo);
     setEstudiante(est);
   }, [usuario]);
 
+  // Función para abrir la cámara (primero pide permisos si es necesario)
   const handleAbrirCamara = async () => {
     if (permission?.granted) {
       setCamaraAbierta(true);
@@ -75,7 +78,9 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
     }
   };
 
+  // Cuando el scanner detecta un QR
   const handleBarcodeScanned = ({ data }) => {
+    // Evitar procesar múltiples escaneos simultáneamente
     if (scannedRef.current || !estudiante) return;
     scannedRef.current = true;
 

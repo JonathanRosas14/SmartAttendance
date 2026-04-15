@@ -1,13 +1,9 @@
-/**
- * ExportView.js
- * Exportar Asistencia — SmartAttendance
- *
- * Funcionalidades:
- *  - Seleccionar clase (dropdown)
- *  - Resumen de asistencia por sesión (fecha + cantidad de estudiantes)
- *  - Ver todas las sesiones (toggle)
- *  - Exportar a CSV usando expo-file-system y expo-sharing
- */
+// ExportView.js
+// Pantalla para exportar reportes de asistencia a archivos CSV
+// El profesor puede:
+//   - Seleccionar una clase
+//   - Ver un resumen de las sesiones de clase (cada día que se registró asistencia)
+//   - Exportar a CSV usando el sistema de archivos del dispositivo
 
 import React, { useState, useCallback, useEffect } from "react";
 import {
@@ -27,10 +23,11 @@ import {
 
 import chart from "../assets/icons/chart.png";
 
-// ✅ IMPORTAR EXPO FILE SYSTEM Y SHARING
+// Importamos funciones para trabajar con archivo (pero no usamos aquí, están disponibles)
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
+// Importamos funciones del controlador para obtener datos de clases y asistencias
 import {
   obtenerClases,
   obtenerSesionesPorClase,
@@ -40,15 +37,16 @@ import {
   obtenerTodosEstudiantes,
 } from "../controllers/asistenciaController";
 
+// Importamos la función para exportar a Excel
 import {
   exportarAsistenciaExcel,
   exportarAsistenciaPorSesion,
 } from "../utils/exportExcel";
 
-// Para acceder a los datos de asistencia
+// Accedemos a los datos de asistencia directamente
 import { asistencias } from "../models/clases";
 
-// ─── Paleta de colores ────────────────────────────────────────────────────────
+// Paleta de colores
 const COLORS = {
   primary:    "#1A3A6B",
   accent:     "#3B82F6",
@@ -65,8 +63,8 @@ const COLORS = {
   red:        "#DC2626",
 };
 
-
-/** Formatea una fecha "YYYY-MM-DD" → "Oct 24, 2023" */
+// Función auxiliar para convertir fechas a un formato más legible
+// Por ejemplo: "2025-04-14" → "Apr 14, 2025"
 function formatearFecha(fechaStr = "") {
   try {
     const [y, m, d] = fechaStr.split("-").map(Number);

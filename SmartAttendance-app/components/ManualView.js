@@ -1,19 +1,8 @@
-/**
- * ManualView.js
- * Asistencia Manual — SmartAttendance
- *
- * Funcionalidades:
- *  - Seleccionar clase (dropdown)
- *  - Buscar estudiante por nombre
- *  - Marcar ASISTIÓ / FALTÓ por estudiante
- *  - Card con borde verde (asistió) o rojo (faltó)
- *  - Guardar asistencia manual en lote
- *
- * Conexión al backend:
- *  - obtenerClases               → lista de clases para el selector
- *  - obtenerEstudiantesPorClase  → estudiantes de la clase seleccionada
- *  - guardarAsistenciaManual     → guardar registros en lote
- */
+// ManualView.js
+// Pantalla para registrar asistencia de forma manual (sin QR)
+// El profesor selecciona una clase y luego marca a cada estudiante como asistió o faltó
+// Dependiendo de la selección, la tarjeta del estudiante se pone verde (asistió) o roja (faltó)
+// Al final, el profesor guarda todos los registros en lote
 
 import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
@@ -34,13 +23,14 @@ import {
 
 import planning from "../assets/icons/planning.png";
 
+// Importamos las funciones para obtener clases, estudiantes, y guardar asistencia manual
 import {
   obtenerClases,
   obtenerEstudiantesPorClase,
   guardarAsistenciaManual,
 } from "../controllers/asistenciaController";
 
-// ─── Paleta de colores ────────────────────────────────────────────────────────
+// Paleta de colores
 const COLORS = {
   primary:     "#1A3A6B",
   accent:      "#3B82F6",
@@ -61,7 +51,7 @@ const COLORS = {
   redBorder:   "#EF4444",
 };
 
-// Colores para avatares de iniciales
+// Colores para avatares de iniciales (para que se vea mejor visualmente)
 const AVATAR_COLORS = [
   { bg: "#DDE8F8", text: "#1A3A6B" },
   { bg: "#FDE8E8", text: "#9B1C1C" },
@@ -71,6 +61,7 @@ const AVATAR_COLORS = [
   { bg: "#EDE9FE", text: "#5B21B6" },
 ];
 
+// Función para extraer las iniciales del nombre de un estudiante
 function getIniciales(nombre = "") {
   const partes = nombre.trim().split(" ").filter(Boolean);
   if (partes.length === 0) return "?";

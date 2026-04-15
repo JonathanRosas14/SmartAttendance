@@ -11,10 +11,10 @@ import {
 } from "../models/clases";
 import { getCurrentTime, getCurrentDate } from "../utils/time";
 
-// ─────────────────────────────────────────
-// CLASES
-// ─────────────────────────────────────────
+// Este controlador maneja toda la lógica de negocio para clases, estudiantes y asistencias
+// Aquí ocurren todas las validaciones y registros importantes del sistema
 
+// CRUD básico para clases - permitir crear, editar, eliminr y consultar clases
 export function crearClase({ id, nombre, horaInicio, horaFin }) {
   if (!nombre || nombre.trim() === "") {
     return {
@@ -32,6 +32,7 @@ export function crearClase({ id, nombre, horaInicio, horaFin }) {
     };
   }
 
+  // Si el profesor no proporciona un ID, generamos uno automáticamente basado en el nombre
   const claseId =
     id ||
     nombre.replace(/\s+/g, "").toUpperCase().substring(0, 8) +
@@ -43,7 +44,7 @@ export function crearClase({ id, nombre, horaInicio, horaFin }) {
   }
 
   clases.push({ id: claseId, nombre, horaInicio, horaFin });
-  // Guardar en persistencia
+  // Guardamos la clase en almacenamiento persistente para no perder datos
   guardarClasesEnStorage();
   return { ok: true, mensaje: "Clase creada exitosamente.", claseId };
 }
@@ -78,10 +79,7 @@ export function obtenerClases() {
   return clases;
 }
 
-// ─────────────────────────────────────────
-// ESTUDIANTES
-// ─────────────────────────────────────────
-
+// CRUD para estudiantes - agregar estudiantes a clases, editarlos y eliminarlos
 export function agregarEstudiante({ id, nombre, celular, claseId }) {
   if (!id || !nombre || !celular || !claseId) {
     return { ok: false, mensaje: "Todos los campos son obligatorios." };
@@ -94,6 +92,7 @@ export function agregarEstudiante({ id, nombre, celular, claseId }) {
 
   const existe = estudiantes.find((e) => e.id === id);
   if (existe) {
+    // Si el estudiante ya existe, podemos vincularlo a una nueva clase
     if (!existe.clases.includes(claseId)) {
       existe.clases.push(claseId);
       guardarEstudiantesEnStorage();
@@ -105,6 +104,7 @@ export function agregarEstudiante({ id, nombre, celular, claseId }) {
     };
   }
 
+  // Crear un nuevo estudiante y vincularlo a la clase
   estudiantes.push({ id, nombre, celular, clases: [claseId] });
   guardarEstudiantesEnStorage();
   return { ok: true, mensaje: `Estudiante ${nombre} creado y vinculado.` };
@@ -136,10 +136,8 @@ export function obtenerTodosEstudiantes() {
   return estudiantes;
 }
 
-// ─────────────────────────────────────────
-// VALIDACIONES INTERNAS
-// ─────────────────────────────────────────
-
+// Funciones internas de validación - usadas en el flujo de registro de asistencia
+// Verificamos que el estudiante exista, que pertenezca a la clase, que el celular sea correcto, etc.
 function validarEstudiante(estudianteId) {
   return estudiantes.find((e) => e.id === estudianteId) || null;
 }
@@ -148,15 +146,18 @@ function validarPertenencia(estudiante, claseId) {
   return estudiante.clases.includes(claseId);
 }
 
+// Validar que el celular que proporcionó coincida con el del registro
 function validarIdentidad(estudiante, celular) {
   return estudiante.celular === celular;
 }
 
+// Verificar si el estudiante intenta registrar asistencia dentro del horario de la clase
 function validarHorario(clase) {
   const ahora = getCurrentTime();
   return ahora >= clase.horaInicio && ahora <= clase.horaFin;
 }
 
+// Evitar que el mismo estudiante registe asistencia dos veces en la misma clase en el mismo día
 function validarDuplicado(estudianteId, claseId) {
   const fecha = getCurrentDate();
   return asistencias.find(
@@ -167,6 +168,7 @@ function validarDuplicado(estudianteId, claseId) {
   );
 }
 
+// Si algo falla, registramos el error para poder analizarlo después
 function registrarError(estudianteId, claseId, motivo) {
   errorLogs.push({
     estudianteId,
@@ -177,31 +179,26 @@ function registrarError(estudianteId, claseId, motivo) {
   });
 }
 
-// ─────────────────────────────────────────
-// QR DINÁMICO
-// ─────────────────────────────────────────
-
-// Generar un QR para una clase con duración configurable en segundos
-// El QR contiene: claseId, token único y timestamp de expiración
+// Los QR se generan dinámicamente y expiran después de un cierto tiempo (60 segundos por defecto)
+// Esto asegura que el mismo QR no pueda usarse en múltiples momentos
+// El profesor genera un QR para cada sesión de clase
 export function generarQRParaClase(claseId, duracionSegundos = 60) {
   const clase = clases.find((c) => c.id === claseId);
   if (!clase) return { ok: false, mensaje: "Clase no encontrada." };
 
-  // Crear el objeto QR con token aleatorio y tiempo de expiración
+  // Creamos un objeto QR con un token único y tiempo de expiración
   const qrData = {
     claseId,
     token: Math.random().toString(36).substring(2) + Date.now().toString(36),
     expiracion: Date.now() + duracionSegundos * 1000,
   };
 
-  // Retornar el QR como string JSON para ser convertido en imagen QR
+  // Convertimos a JSON string para que se convierta en código QR
   return { ok: true, qr: JSON.stringify(qrData) };
 }
 
-// ─────────────────────────────────────────
-// REGISTRO DE ASISTENCIA POR QR
-// ─────────────────────────────────────────
-
+// Cuando un estudiante escanea un QR, se ejecuta esta función que realiza múltiples validaciones
+// Primero verifica que el estudiante existe, que pertenece a la clase, que el QR es válido, etc.
 export function registrarAsistenciaQRCompleto({ estudianteId, celular, claseId, qrData }) {
   // Validar existencia del estudiante
   const estudiante = validarEstudiante(estudianteId);
@@ -210,7 +207,7 @@ export function registrarAsistenciaQRCompleto({ estudianteId, celular, claseId, 
     return { ok: false, mensaje: "Estudiante no encontrado." };
   }
 
-  // Validar identidad del estudiante
+  // Validar identidad del estudiante (que el celular coincida)
   if (!validarIdentidad(estudiante, celular)) {
     registrarError(estudianteId, claseId, "Identidad no coincide");
     return { ok: false, mensaje: "El celular no coincide con el registrado." };
@@ -222,22 +219,21 @@ export function registrarAsistenciaQRCompleto({ estudianteId, celular, claseId, 
     return { ok: false, mensaje: "No estás inscrito en esta clase." };
   }
 
-  // Validar QR
+  // Validar que el QR sea válido (no haya sido modificado, que sea de esta clase, etc.)
   try {
     const qr = JSON.parse(qrData);
     const ahora = Date.now();
 
-    // Validar que el QR corresponda a la clase
+    // El QR debe corresponder exactamente a esta clase
     if (qr.claseId !== claseId) {
       registrarError(estudianteId, claseId, "QR de otra clase");
       return { ok: false, mensaje: "El QR no corresponde a esta clase." };
     }
-    // Validar que el QR no haya expirado
+    // El QR tiene una duración limitada, después expira
     if (ahora > qr.expiracion) {
       registrarError(estudianteId, claseId, "QR expirado");
       return { ok: false, mensaje: "El QR ha expirado. Solicita uno nuevo." };
     }
-    // Si el QR es válido, continuar con las demás validaciones
   } catch {
     registrarError(estudianteId, claseId, "QR inválido");
     return { ok: false, mensaje: "QR inválido o modificado." };
@@ -249,19 +245,19 @@ export function registrarAsistenciaQRCompleto({ estudianteId, celular, claseId, 
     return { ok: false, mensaje: "Clase no encontrada." };
   }
 
-  // Validar que el registro se haga dentro del horario de la clase
+  // Validar que el registro se haga dentro del horario de la clase (no fuera de hora)
   if (!validarHorario(clase)) {
     registrarError(estudianteId, claseId, "Fuera de horario");
     return { ok: false, mensaje: "Estás fuera del horario permitido." };
   }
 
-  // Validar que no haya un registro previo para el mismo estudiante, clase y fecha
+  // Validar que el estudiante no haya registrado asistencia ya hoy en esta clase
   if (validarDuplicado(estudianteId, claseId)) {
     registrarError(estudianteId, claseId, "Registro duplicado");
     return { ok: false, mensaje: "Ya registraste asistencia hoy en esta clase." };
   }
 
-  // Si todas las validaciones pasan, registrar la asistencia
+  // Todas las validaciones pasaron, registrar la asistencia
   asistencias.push({
     estudianteId,
     claseId,
@@ -270,23 +266,17 @@ export function registrarAsistenciaQRCompleto({ estudianteId, celular, claseId, 
     tipo: "qr",
   });
 
-  // Guardar en persistencia
+  // Guardar en almacenamiento persistente
   guardarAsistenciasEnStorage();
 
-  // Retornar mensaje de éxito con el nombre del estudiante
   return {
     ok: true,
     mensaje: `¡Asistencia registrada! Bienvenido ${estudiante.nombre}.`,
   };
 }
 
-// ─────────────────────────────────────────
-// ASISTENCIA MANUAL
-// ─────────────────────────────────────────
-
-// Registro de asistencia manual por el profesor en lote
-// registros: [ { estudianteId, asistio: true/false }, ... ]
-// Validaciones: clase existe, no duplicado por cada estudiante
+// Los profesores pueden registrar asistencia de forma manual sin QR
+// Útil para casos donde falla el escaneo o hay problemas técnicos
 export function guardarAsistenciaManual({ claseId, registros }) {
   // Validar que la clase exista
   const clase = clases.find((c) => c.id === claseId);
@@ -294,15 +284,15 @@ export function guardarAsistenciaManual({ claseId, registros }) {
 
   let guardados = 0;
 
-  // Recorrer cada registro y guardar solo los que asistieron
+  // Recorrer cada registro y guardar solo a quienes asistieron
   for (const r of registros) {
-    if (!r.asistio) continue; // omitir los que no asistieron
+    if (!r.asistio) continue; // Omitir a quienes no asistieron
 
-    // Validar que no haya un registro previo para el mismo estudiante, clase y fecha
+    // Evitar duplicados - si ya está registrado hoy, no vuelvo a registrar
     const duplicado = validarDuplicado(r.estudianteId, claseId);
     if (duplicado) continue;
 
-    // Si todas las validaciones pasan, registrar la asistencia manual
+    // Registrar la asistencia manual
     asistencias.push({
       estudianteId: r.estudianteId,
       claseId,
@@ -316,18 +306,14 @@ export function guardarAsistenciaManual({ claseId, registros }) {
   // Guardar en persistencia
   guardarAsistenciasEnStorage();
 
-  // Retornar mensaje de éxito con el total de asistencias guardadas
   return { ok: true, mensaje: `${guardados} asistencia(s) guardada(s).` };
 }
 
-// ─────────────────────────────────────────
-// CÁLCULO Y EXPORTACIÓN
-// ─────────────────────────────────────────
 
-// ✅ CORREGIDO: ahora usamos sesiones reales en lugar de clases.length
+// Cálculos de asistencia - importante para generar reportes y estadísticas
+// Se calcula cuántas clases ha asistido cada estudiante vs cuántas fueron en total
 export function calcularAsistenciaPorClase(claseId) {
   const estudiantesClase = obtenerEstudiantesPorClase(claseId);
-
   const sesiones = obtenerSesionesPorClase(claseId);
   const totalSesiones = sesiones.length;
 
@@ -345,12 +331,13 @@ export function calcularAsistenciaPorClase(claseId) {
       id: est.id,
       nombre: est.nombre,
       asistencias: totalAsistencias,
-      totalClases: totalSesiones, // 👈 ahora refleja sesiones reales
+      totalClases: totalSesiones,
       porcentaje,
     };
   });
 }
 
+// Calcular asistencia general de cada estudiante en todas las clases
 export function calcularAsistenciaGeneral() {
   const todasSesiones = obtenerTodasLasSesiones();
   const totalSesiones = todasSesiones.length;
@@ -369,16 +356,14 @@ export function calcularAsistenciaGeneral() {
       id: est.id,
       nombre: est.nombre,
       asistencias: totalAsistencias,
-      totalClases: totalSesiones, // 👈 sesiones reales
+      totalClases: totalSesiones,
       porcentaje,
     };
   });
 }
 
-// ─────────────────────────────────────────
-// Sesiones
-// ─────────────────────────────────────────
-
+// Una sesión es cada día que se registró asistencia en una clase
+// Esto nos permite calcular el porcentaje de asistencia correctamente
 export function obtenerSesionesPorClase(claseId) {
   const porFecha = {};
   asistencias
@@ -392,6 +377,7 @@ export function obtenerSesionesPorClase(claseId) {
     .sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 
+// Obtener todas las sesiones de todas las clases
 export function obtenerTodasLasSesiones() {
   const porFecha = {};
   asistencias.forEach((a) => {
@@ -405,24 +391,22 @@ export function obtenerTodasLasSesiones() {
   return Object.values(porFecha).sort((a, b) => b.fecha.localeCompare(a.fecha));
 }
 
-// ─────────────────────────────────────────
-// REGISTRO DE USUARIOS
-// ─────────────────────────────────────────
-
+// Función para registrar un nuevo estudiante en el sistema
+// Se validan correos e IDs duplicados
 export function registrarEstudiante({ nombre, id, celular, correo, contrasena }) {
-  // Validar que no exista correo duplicado
+  // Verificar que el correo no esté ya registrado
   const correoExiste = usuariosRegistrados.estudiantes.some((e) => e.correo === correo);
   if (correoExiste) {
     return { ok: false, mensaje: "El correo ya está registrado." };
   }
 
-  // Validar que no exista ID duplicado
+  // Verificar que el ID no esté duplicado
   const idExiste = usuariosRegistrados.estudiantes.some((e) => e.id === id);
   if (idExiste) {
     return { ok: false, mensaje: "El ID de estudiante ya está registrado." };
   }
 
-  // Agregar nuevo estudiante
+  // Crear el nuevo usuario estudiante
   usuariosRegistrados.estudiantes.push({
     id,
     nombre,
@@ -436,20 +420,21 @@ export function registrarEstudiante({ nombre, id, celular, correo, contrasena })
   return { ok: true, mensaje: "Estudiante registrado exitosamente." };
 }
 
+// Registro de un nuevo profesor en el sistema
 export function registrarProfesor({ nombre, id, departamento, correo, contrasena }) {
-  // Validar que no exista correo duplicado
+  // Verificar que el correo no esté ya registrado
   const correoExiste = usuariosRegistrados.profesores.some((p) => p.correo === correo);
   if (correoExiste) {
     return { ok: false, mensaje: "El correo ya está registrado." };
   }
 
-  // Validar que no exista ID duplicado
+  // Verificar que el ID no esté duplicado
   const idExiste = usuariosRegistrados.profesores.some((p) => p.id === id);
   if (idExiste) {
     return { ok: false, mensaje: "El ID de profesor ya está registrado." };
   }
 
-  // Agregar nuevo profesor
+  // Crear el nuevo usuario profesor
   usuariosRegistrados.profesores.push({
     id,
     nombre,
@@ -463,24 +448,24 @@ export function registrarProfesor({ nombre, id, departamento, correo, contrasena
   return { ok: true, mensaje: "Profesor registrado exitosamente." };
 }
 
-// ─────────────────────────────────────────
-// AUTENTICACIÓN (Simulada para pruebas)
-// ─────────────────────────────────────────
-
+// Login del sistema - verifica credenciales del usuario (profesor o estudiante)
+// Aquí es donde el usuario inicia sesión con su correo y contraseña
 export function login({ correo, contrasena, rol }) {
   if (!rol || (rol !== "profesor" && rol !== "estudiante")) {
     return { ok: false, mensaje: "Rol no válido." };
   }
 
+  // Seleccionar la lista correcta según el rol
   const usuarios = rol === "profesor" ? usuariosRegistrados.profesores : usuariosRegistrados.estudiantes;
 
-  // Buscar usuario por correo
+  // Buscar al usuario por correo
   const usuario = usuarios.find((u) => u.correo === correo);
 
   if (!usuario) {
     return { ok: false, mensaje: "Correo no encontrado." };
   }
 
+  // Verificar la contraseña (en producción esto sería hasheado)
   if (usuario.contrasena !== contrasena) {
     return { ok: false, mensaje: "Contraseña incorrecta." };
   }
@@ -496,34 +481,33 @@ export function login({ correo, contrasena, rol }) {
   };
 }
 
-// ─────────────────────────────────────────
-// FUNCIONES PARA ESTUDIANTES
-// ─────────────────────────────────────────
+// Funciones específicas para estudiantes logueados
 
+// Encontrar un estudiante por su correo
 export function obtenerEstudiantePorCorreo(correo) {
-  // Buscar en estudiantes registrados
   return usuariosRegistrados.estudiantes.find((e) => e.correo === correo) || null;
 }
 
+// Los estudiantes pueden registrar asistencia escaneando un QR desde su celular
 export function registrarAsistenciaQR({ estudianteId, celular, claseId, qrData }) {
-  // Validar que el estudiante exista
+  // Verificar que el estudiante exista en la base de datos
   const estudiante = usuariosRegistrados.estudiantes.find((e) => e.id === estudianteId);
   if (!estudiante) {
     return { ok: false, mensaje: "Estudiante no encontrado." };
   }
 
-  // Validar celular
+  // Verificar que el celular coincida con el registrado
   if (estudiante.celular !== celular) {
     return { ok: false, mensaje: "El número de celular no coincide." };
   }
 
-  // Validar que la clase exista
+  // Verificar que la clase exista
   const clase = clases.find((c) => c.id === claseId);
   if (!clase) {
     return { ok: false, mensaje: "La clase no existe." };
   }
 
-  // Validar que no haya duplicado en el mismo día
+  // Verificar que no haya registrado asistencia ya hoy en esta clase
   const fecha = getCurrentDate();
   const yaAsistio = asistencias.find(
     (a) => a.estudianteId === estudianteId && 
@@ -534,7 +518,7 @@ export function registrarAsistenciaQR({ estudianteId, celular, claseId, qrData }
     return { ok: false, mensaje: "Ya registraste asistencia hoy en esta clase." };
   }
 
-  // Registrar asistencia
+  // Registrar la asistencia
   asistencias.push({
     estudianteId,
     claseId,
@@ -543,19 +527,19 @@ export function registrarAsistenciaQR({ estudianteId, celular, claseId, qrData }
     tipo: "qr",
   });
 
-  // Guardar en persistencia
   guardarAsistenciasEnStorage();
 
   return { ok: true, mensaje: "✓ Asistencia registrada correctamente." };
 }
 
+// Obtener el historial de asistencia de un estudiante (todas sus asistencias registradas)
 export function obtenerHistorialEstudiante(estudianteId) {
   // Obtener todas las asistencias del estudiante
   const asistenciasEstudiante = asistencias.filter(
     (a) => a.estudianteId === estudianteId
   );
 
-  // Enriquecer con información de la clase
+  // Agregar información de la clase (nombre) a cada asistencia
   return asistenciasEstudiante.map((a) => {
     const clase = clases.find((c) => c.id === a.claseId);
     return {

@@ -1,4 +1,7 @@
-// App.js
+// App.js - Componente principal de SmartAttendance
+// Aquí manejamos el flujo de autenticación, la navegación entre pantallas
+// y la estructura general de la app. Profesores y estudiantes tienen flujos muy diferentes
+
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -21,7 +24,7 @@ import LoginView from "./components/LoginView";
 import RegisterRolView from "./components/RegisterRolView";
 import FormRegistroView from "./components/FormRegistroView";
 
-// Cargar datos del storage al iniciar
+// Al iniciar la app, cargamos todos los datos que fueron guardados en almacenamiento local
 import { cargarDatosDelStorage } from "./models/clases";
 
 import book from "./assets/icons/book.png";
@@ -30,6 +33,7 @@ import qrIcon from "./assets/icons/qr.png";
 import planning from "./assets/icons/planning.png";
 import exporti from "./assets/icons/export.png";
 
+// Paleta de colores usada en toda la app para mantener consistencia visual
 const COLORS = {
   primary: "#1A3A6B",
   primaryLight: "#2454A0",
@@ -41,6 +45,7 @@ const COLORS = {
   navBorder: "#E2E8F0",
 };
 
+// Configuración de las tabs de navegación que solo ven los profesores
 const NAV_TABS = [
   { id: "clases", label: "CLASSES", icon: book, isImage: true },
   { id: "estudiantes", label: "STUDENTS", icon: user, isImage: true },
@@ -50,27 +55,34 @@ const NAV_TABS = [
 ];
 
 export default function App() {
-  const [usuario, setUsuario] = useState(null); // null = no logueado
+  // Este estado guarda el usuario logueado. Si es null, está en login
+  const [usuario, setUsuario] = useState(null);
+  
+  // La pantalla actual que ve el profesor (clases, estudiantes, qr, etc)
   const [pantalla, setPantalla] = useState("clases");
   
-  // Estados para el flujo de registro
-  const [mostrarRegistro, setMostrarRegistro] = useState(false); // RegisterRolView
-  const [rolSeleccionado, setRolSeleccionado] = useState(null); // Rol elegido
-  const [mostrarFormulario, setMostrarFormulario] = useState(false); // FormRegistroView
+  // Estos states controlan el flujo de registro que es bastante complejo
+  // El usuario primero elige su rol, luego llena el formulario
+  const [mostrarRegistro, setMostrarRegistro] = useState(false);
+  const [rolSeleccionado, setRolSeleccionado] = useState(null);
+  const [mostrarFormulario, setMostrarFormulario] = useState(false);
 
-  // Cargar datos al montar la app
+  // Cuando la app se abre, cargamos todos los datos del almacenamiento
+  // (clases, asistencias, estudiantes guardados anteriormente)
   useEffect(() => {
     cargarDatosDelStorage();
   }, []);
 
+  // Se ejecuta cuando el login fue exitoso. Guardamos el usuario y lo redirigimos
+  // a su pantalla correspondiente (profesores a clases, estudiantes a su flujo)
   const handleLoginExitoso = (usuarioData) => {
     setUsuario(usuarioData);
-    // Si es profesor va a clases, si es estudiante va a QR (no navega aquí porque EstudianteMainView maneja la navegación)
     if (usuarioData.rol === "profesor") {
       setPantalla("clases");
     }
   };
 
+  // Cuando el usuario cierra sesión, limpiamos todo
   const handleLogout = () => {
     setUsuario(null);
     setMostrarRegistro(false);
@@ -78,26 +90,29 @@ export default function App() {
     setMostrarFormulario(false);
   };
 
+  // El usuario seleccionó un rol (profesor o estudiante) y ahora llena el formulario
   const handleRolSeleccionado = (rol) => {
     setRolSeleccionado(rol);
     setMostrarFormulario(true);
   };
 
+  // Después de llenar el formulario, podemos recibir un usuario nuevo (auto-login)
+  // o solo el rol (y volver al login)
   const handleRegistroExitoso = (rolOusuario) => {
-    // Si recibe un objeto (usuario con auto-login)
+    // Si recibe un objeto usuario, significa que se registró correctamente
     if (typeof rolOusuario === "object" && rolOusuario && rolOusuario.rol) {
       handleLoginExitoso(rolOusuario);
     } else {
-      // Si recibe solo el rol (string), volver al login
+      // Si solo recibe el rol (string), volvemos al login
       setMostrarFormulario(false);
       setRolSeleccionado(null);
       setMostrarRegistro(false);
-      // Aquí se mostrará automáticamente el LoginView
     }
   };
 
-  // Si no hay sesión, mostrar login, registro o formulario
+  // Si no hay usuario logueado, mostramos el flujo de login/registro
   if (!usuario) {
+    // Paso 3: El usuario está llenando el formulario de registro
     if (mostrarFormulario && rolSeleccionado) {
       return (
         <FormRegistroView 
@@ -112,6 +127,7 @@ export default function App() {
       );
     }
     
+    // Paso 2: El usuario está eligiendo su rol (profesor o estudiante)
     if (mostrarRegistro) {
       return (
         <RegisterRolView 
@@ -121,6 +137,7 @@ export default function App() {
       );
     }
     
+    // Paso 1: Pantalla de login o ir al registro
     return (
       <LoginView 
         onLoginExitoso={handleLoginExitoso} 
@@ -133,6 +150,7 @@ export default function App() {
     );
   }
 
+  // Función para renderizar la pantalla correcta según el tab seleccionado
   const renderPantalla = () => {
     switch (pantalla) {
       case "clases":
@@ -154,15 +172,16 @@ export default function App() {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.card} barStyle="dark-content" />
 
-      {/* Si es estudiante, mostrar EstudianteMainView */}
+      {/* Los estudiantes tienen su propia interfaz: EstudianteMainView */}
       {usuario && usuario.rol === "estudiante" ? (
         <EstudianteMainView usuario={usuario} onLogout={handleLogout} />
       ) : (
         <>
-          {/* Contenido de pantalla (para profesores) */}
+          {/* Mostramos la pantalla actual del profesor */}
           <View style={styles.contentContainer}>{renderPantalla()}</View>
 
-          {/* Bottom Navigation - GLOBAL Y FIJA (solo para profesores) */}
+          {/* Barra de navegación en la parte inferior - solo para profesores */}
+          {/* Permite cambiar entre clases, estudiantes, QR, manual y exportar */}
           <View style={styles.navBar}>
             {NAV_TABS.map((tab) => (
               <TouchableOpacity
