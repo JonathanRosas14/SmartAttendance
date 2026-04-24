@@ -24,11 +24,8 @@ import { CameraView } from "expo-camera";
 
 import qr from "../assets/icons/qr.png";
 
-// Importamos las funciones del controlador para registrar asistencia
-import {
-  registrarAsistenciaQRCompleto,
-  obtenerEstudiantePorCorreo,
-} from "../controllers/asistenciaController";
+// Importamos la función API para registrar asistencia
+import { registrarAsistenciaQRAPI } from "../services/api";
 
 const COLORS = {
   primary: "#1A3A6B",
@@ -46,8 +43,6 @@ const COLORS = {
 };
 
 export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVisible, onLogout }) {
-  // Guardamos los datos del estudiante una vez que se carga
-  const [estudiante, setEstudiante] = useState(null);
   // Controla si la cámara está abierta
   const [camaraAbierta, setCamaraAbierta] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -55,12 +50,6 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
   const [permission, requestPermission] = useCameraPermissions();
   // Ref para evitar procesar múltiples escaneos al mismo tiempo
   const scannedRef = useRef(false);
-
-  // Cargar datos del estudiante cuando se monta el componente
-  useEffect(() => {
-    const est = obtenerEstudiantePorCorreo(usuario.correo);
-    setEstudiante(est);
-  }, [usuario]);
 
   // Función para abrir la cámara (primero pide permisos si es necesario)
   const handleAbrirCamara = async () => {
@@ -79,9 +68,9 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
   };
 
   // Cuando el scanner detecta un QR
-  const handleBarcodeScanned = ({ data }) => {
+  const handleBarcodeScanned = async ({ data }) => {
     // Evitar procesar múltiples escaneos simultáneamente
-    if (scannedRef.current || !estudiante) return;
+    if (scannedRef.current || !usuario?.numero_identificacion) return;
     scannedRef.current = true;
 
     setCargando(true);
@@ -114,12 +103,13 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
         return;
       }
 
-      const resultado = registrarAsistenciaQRCompleto({
-        estudianteId: estudiante.id,
-        celular: estudiante.celular,
+      // Llamar API para registrar asistencia
+      const resultado = await registrarAsistenciaQRAPI(
+        usuario.numero_identificacion,
         claseId,
-        qrData: data,
-      });
+        data,
+        usuario.token
+      );
 
       setCargando(false);
 
@@ -186,18 +176,18 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.bienvenidoLabel}>BIENVENIDO,</Text>
           <Text style={styles.holaTexto}>
-            Hola, <Text style={styles.holaAccent}>{estudiante?.nombre?.split(" ")[0] || usuario.nombre}</Text>
+            Hola, <Text style={styles.holaAccent}>{usuario.nombre?.split(" ")[0]}</Text>
           </Text>
 
           <View style={styles.qrCard}>
             <TouchableOpacity style={styles.qrBoton} onPress={handleAbrirCamara} activeOpacity={0.85}>
               <Image source={qr} style={{ width: 100, height: 100 }} />
-              <Text style={styles.qrBotonLabel}>PULSAR</Text>
+              <Text style={styles.qrBotonLabel}>ESCANEAR</Text>
             </TouchableOpacity>
 
             <Text style={styles.qrCardTitulo}>Escanear QR</Text>
             <Text style={styles.qrCardSub}>
-              Posiciona la cámara frente al código del aula para registrar tu asistencia de hoy.
+              Posiciona la cámara frente al código que tu profesor genere para registrar tu asistencia.
             </Text>
           </View>
         </ScrollView>

@@ -18,12 +18,12 @@ import {
   Alert,
 } from "react-native";
 
-// Importamos las funciones para registrar estudiantes y profesores
+// Importamos las funciones de API para registrar en la BD
 import {
-    login,
-  registrarEstudiante,
-  registrarProfesor,
-} from "../controllers/asistenciaController";
+  registrarEstudianteAPI,
+  registrarProfesorAPI,
+  loginAPI,
+} from "../services/api";
 
 const COLORS = {
   primary:    "#1A3A6B",
@@ -45,9 +45,9 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
   // Form contiene todos los datos del usuarios según sea estudiante o profesor
   const [form, setForm] = useState({
     nombre:       "",
-    id:           "",
-    celular:      "",       // solo para estudiantes
-    departamento: "",       // solo para profesores
+    id:           "",           // ID para estudiantes
+    celular:      "",           // solo para estudiantes
+    departamento: "",           // solo para profesores
     correo:       "",
     contrasena:   "",
   });
@@ -60,25 +60,11 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
     setForm((prev) => ({ ...prev, [campo]: valor }));
   };
 
-  // Cuando el usuario presiona registrarse, validamos todos los campos
-  const handleRegistro = () => {
+  // Cuando el usuario presiona registrarse, validamos todos los campos y llamamos al API
+  const handleRegistro = async () => {
     // Validar campos obligatorios
     if (!form.nombre.trim()) {
       Alert.alert("Validación", "Por favor ingresa tu nombre completo.");
-      return;
-    }
-    if (!form.id.trim()) {
-      Alert.alert("Validación", `Por favor ingresa tu ${esEstudiante ? "ID de estudiante" : "ID de profesor"}.`);
-      return;
-    }
-    // Campo celular solo para estudiantes
-    if (esEstudiante && !form.celular.trim()) {
-      Alert.alert("Validación", "Por favor ingresa tu número de teléfono.");
-      return;
-    }
-    // Campo departamento solo para profesores
-    if (!esEstudiante && !form.departamento.trim()) {
-      Alert.alert("Validación", "Por favor ingresa tu departamento.");
       return;
     }
     if (!form.correo.trim()) {
@@ -100,38 +86,57 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
       return;
     }
 
+    // Validaciones específicas por rol
+    if (esEstudiante && !form.id.trim()) {
+      Alert.alert("Validación", "Por favor ingresa tu ID o cédula del estudiante.");
+      return;
+    }
+    if (esEstudiante && !form.celular.trim()) {
+      Alert.alert("Validación", "Por favor ingresa tu número de teléfono.");
+      return;
+    }
+    if (!esEstudiante && !form.departamento.trim()) {
+      Alert.alert("Validación", "Por favor ingresa tu departamento.");
+      return;
+    }
+
     setCargando(true);
 
-    setTimeout(() => {
+    try {
       let resultado;
 
       if (esEstudiante) {
-        resultado = registrarEstudiante({
-          nombre:    form.nombre.trim(),
-          id:        form.id.trim(),
-          celular:   form.celular.trim(),
-          correo:    form.correo.trim(),
-          contrasena: form.contrasena,
-        });
+        // Registrar estudiante en BD
+        resultado = await registrarEstudianteAPI(
+          form.nombre.trim(),
+          form.correo.trim(),
+          form.contrasena,
+          form.id.trim(),
+          form.celular.trim()
+        );
       } else {
-        resultado = registrarProfesor({
-          nombre:       form.nombre.trim(),
-          id:           form.id.trim(),
-          departamento: form.departamento.trim(),
-          correo:       form.correo.trim(),
-          contrasena:   form.contrasena,
-        });
+        // Registrar profesor en BD
+        resultado = await registrarProfesorAPI(
+          form.nombre.trim(),
+          form.correo.trim(),
+          form.contrasena,
+          form.departamento.trim()
+        );
       }
-
-      setCargando(false);
 
       if (resultado.ok) {
-        // Registro exitoso - ir directamente al login sin alertas
+        Alert.alert("✅ Éxito", "¡Registro exitoso! Por favor inicia sesión.");
+        // Volver al login
         onRegistroExitoso(rol);
       } else {
-        Alert.alert("❌ Error en el registro", resultado.mensaje);
+        Alert.alert("❌ Error en el registro", resultado.mensaje || "Error desconocido");
       }
-    }, 500);
+    } catch (error) {
+      console.error("Error en registro:", error);
+      Alert.alert("❌ Error", "Error conectando con el servidor: " + error.message);
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (
@@ -182,18 +187,20 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
               autoCapitalize="words"
             />
 
-            {/* ── ID ──────────────────────────────────────────────── */}
-            <Text style={styles.inputLabel}>
-              {esEstudiante ? "ID DE ESTUDIANTE" : "ID DE PROFESOR"}
-            </Text>
-            <TextInput
-              style={styles.input}
-              placeholder={esEstudiante ? "STU-2023-XXXX" : "PRO-2023-XXXX"}
-              placeholderTextColor={COLORS.textMuted}
-              value={form.id}
-              onChangeText={(v) => actualizar("id", v)}
-              autoCapitalize="characters"
-            />
+            {/* ── NÚMERO DE IDENTIFICACIÓN (solo para estudiantes) ──────────*/}
+            {esEstudiante && (
+              <>
+                <Text style={styles.inputLabel}>NÚMERO DE IDENTIFICACIÓN</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ej. 408094 o V-12345678"
+                  placeholderTextColor={COLORS.textMuted}
+                  value={form.id}
+                  onChangeText={(v) => actualizar("id", v)}
+                  autoCapitalize="characters"
+                />
+              </>
+            )}
 
             {/* ── CAMPO EXCLUSIVO POR ROL ──────────────────────────── */}
             {esEstudiante ? (

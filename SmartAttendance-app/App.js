@@ -154,17 +154,17 @@ export default function App() {
   const renderPantalla = () => {
     switch (pantalla) {
       case "clases":
-        return <ProfesorView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <ProfesorView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "estudiantes":
-        return <EstudianteView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <EstudianteView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "qr":
-        return <QRView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <QRView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "manual":
-        return <ManualView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <ManualView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "exportar":
-        return <ExportView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <ExportView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       default:
-        return <ProfesorView setPantalla={setPantalla} />;
+        return <ProfesorView usuario={usuario} setPantalla={setPantalla} />;
     }
   };
 
@@ -176,7 +176,7 @@ export default function App() {
       {usuario && usuario.rol === "estudiante" ? (
         <EstudianteMainView usuario={usuario} onLogout={handleLogout} />
       ) : (
-        <>
+        <View style={{ flex: 1, flexDirection: "column" }}>
           {/* Mostramos la pantalla actual del profesor */}
           <View style={styles.contentContainer}>{renderPantalla()}</View>
 
@@ -219,7 +219,7 @@ export default function App() {
               </TouchableOpacity>
             ))}
           </View>
-        </>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -229,15 +229,13 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.card,
+    flexDirection: "column",
   },
   contentContainer: {
     flex: 1,
+    overflow: "hidden",
   },
   navBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: "row",
     backgroundColor: COLORS.card,
     borderTopWidth: 1,
@@ -245,6 +243,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: Platform.OS === "ios" ? 20 : 10,
     paddingHorizontal: 4,
+    height: Platform.OS === "ios" ? 70 : 60,
   },
   navItem: {
     flex: 1,

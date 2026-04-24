@@ -5,7 +5,7 @@
  * ✅ Compatible con: iOS, Android, Web, Emulador, PC
  */
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
   View,
   Text,
@@ -29,11 +29,11 @@ import trash from "../assets/icons/trash.png";
 import book from "../assets/icons/book.png";
 
 import {
-  crearClase,
-  editarClase,
-  borrarClase,
-  obtenerClases,
-} from "../controllers/asistenciaController";
+  crearClaseAPI,
+  actualizarClaseAPI,
+  eliminarClaseAPI,
+  obtenerClasesAPI,
+} from "../services/api";
 
 const COLORS = {
   primary:     "#1A3A6B",
@@ -418,7 +418,7 @@ const confirmStyles = StyleSheet.create({
 });
 
 // ─── Componente principal ────────────────────────────────────────────────────
-export default function ProfesorView({ setPantalla, onLogout }) {
+export default function ProfesorView({ usuario, setPantalla, onLogout }) {
   // Estados unificados de formulario
   const [formData, setFormData] = useState({
     nombre: "",
@@ -430,11 +430,7 @@ export default function ProfesorView({ setPantalla, onLogout }) {
   const [menuVisible, setMenuVisible] = useState(false);
 
   // Lista de clases
-  const [clasesList, setClasesList] = useState(() => {
-    const clasesIniciales = obtenerClases();
-    console.log('📋 Clases iniciales cargadas:', clasesIniciales.length);
-    return [...clasesIniciales];
-  });
+  const [clasesList, setClasesList] = useState([]);
 
   // Estados para el picker custom
   const [pickerVisible, setPickerVisible] = useState(false);
@@ -446,12 +442,31 @@ export default function ProfesorView({ setPantalla, onLogout }) {
   const [confirmModalVisible, setConfirmModalVisible] = useState(false);
   const [claseAEliminar, setClaseAEliminar] = useState(null);
 
+  // Estado para control de carga
+  const [cargando, setCargando] = useState(false);
+
   // Refrescar lista
-  const refreshClases = useCallback(() => {
-    const clasesActualizadas = obtenerClases();
-    console.log('🔄 Refrescando clases:', clasesActualizadas.length);
-    setClasesList([...clasesActualizadas]);
-  }, []);
+  const refreshClases = useCallback(async () => {
+    try {
+      const resultado = await obtenerClasesAPI(usuario.token);
+      if (resultado && resultado.ok) {
+        const clases = resultado.clases || [];
+        console.log('🔄 Refrescando clases:', clases.length);
+        setClasesList([...clases]);
+      } else if (resultado && Array.isArray(resultado)) {
+        // Fallback si API retorna directamente array
+        console.log('🔄 Refrescando clases:', resultado.length);
+        setClasesList([...resultado]);
+      }
+    } catch (error) {
+      console.error('Error al refrescar clases:', error);
+    }
+  }, [usuario.token]);
+
+  // ✅ CARGAR CLASES AL MONTAR EL COMPONENTE
+  useEffect(() => {
+    refreshClases();
+  }, [refreshClases]);
 
   // Abrir picker (unificado)
   const abrirPicker = useCallback((modo, isEdit = false) => {
@@ -471,7 +486,7 @@ export default function ProfesorView({ setPantalla, onLogout }) {
   }, [pickerMode]);
 
   // Crear clase
-  const handleCrearClase = useCallback(() => {
+  const handleCrearClase = useCallback(async () => {
     if (!formData.nombre.trim()) {
       Alert.alert("Error", "El nombre de la clase no puede estar vacío.");
       return;
@@ -481,20 +496,28 @@ export default function ProfesorView({ setPantalla, onLogout }) {
       return;
     }
 
-    const resultado = crearClase({ 
-      nombre: formData.nombre.trim(), 
-      horaInicio: formData.horaInicio, 
-      horaFin: formData.horaFin 
-    });
+    setCargando(true);
+    try {
+      const resultado = await crearClaseAPI(
+        formData.nombre.trim(),
+        formData.horaInicio,
+        formData.horaFin,
+        usuario.token
+      );
 
-    if (resultado.ok) {
-      Alert.alert("✅ Éxito", resultado.mensaje);
-      setFormData({ nombre: "", horaInicio: "", horaFin: "" });
-      refreshClases();
-    } else {
-      Alert.alert("Error", resultado.mensaje);
+      if (resultado && resultado.ok) {
+        Alert.alert("✅ Éxito", resultado.mensaje || "Clase creada correctamente");
+        setFormData({ nombre: "", horaInicio: "", horaFin: "" });
+        await refreshClases();
+      } else {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo crear la clase");
+      }
+    } catch (error) {
+      Alert.alert("❌ Error", error.message || "Error al crear la clase");
+    } finally {
+      setCargando(false);
     }
-  }, [formData, refreshClases]);
+  }, [formData, usuario.token, refreshClases]);
 
   // Iniciar edición
   const handleIniciarEdicion = useCallback((clase) => {
@@ -507,22 +530,30 @@ export default function ProfesorView({ setPantalla, onLogout }) {
   }, []);
 
   // Guardar edición
-  const handleGuardarEdicion = useCallback(() => {
-    const resultado = editarClase({
-      id: editandoId,
-      nombre: formData.nombre.trim(),
-      horaInicio: formData.horaInicio,
-      horaFin: formData.horaFin,
-    });
+  const handleGuardarEdicion = useCallback(async () => {
+    setCargando(true);
+    try {
+      const resultado = await actualizarClaseAPI(
+        editandoId,
+        formData.nombre.trim(),
+        formData.horaInicio,
+        formData.horaFin,
+        usuario.token
+      );
 
-    if (resultado.ok) {
-      Alert.alert("✅ Actualizado", resultado.mensaje);
-      setEditandoId(null);
-      refreshClases();
-    } else {
-      Alert.alert("Error", resultado.mensaje);
+      if (resultado && resultado.ok) {
+        Alert.alert("✅ Actualizado", resultado.mensaje || "Clase actualizada correctamente");
+        setEditandoId(null);
+        await refreshClases();
+      } else {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo actualizar la clase");
+      }
+    } catch (error) {
+      Alert.alert("❌ Error", error.message || "Error al actualizar la clase");
+    } finally {
+      setCargando(false);
     }
-  }, [editandoId, formData, refreshClases]);
+  }, [editandoId, formData, usuario.token, refreshClases]);
 
   // Cancelar edición
   const handleCancelarEdicion = useCallback(() => {
@@ -536,24 +567,32 @@ export default function ProfesorView({ setPantalla, onLogout }) {
   }, []);
 
   // ✅ EJECUTAR ELIMINACIÓN DESPUÉS DE CONFIRMAR
-  const ejecutarEliminacion = useCallback(() => {
+  const ejecutarEliminacion = useCallback(async () => {
     if (!claseAEliminar) return;
 
     const { id, nombre } = claseAEliminar;
-    const resultado = borrarClase(id);
+    
+    setCargando(true);
+    try {
+      const resultado = await eliminarClaseAPI(id, usuario.token);
 
-    if (resultado.ok) {
-      setClasesList([...obtenerClases()]);
-      setConfirmModalVisible(false);
-      setClaseAEliminar(null);
-      
-      if (Platform.OS !== 'web') {
-        Alert.alert("✅ Eliminado", `La clase "${nombre}" fue eliminada.`);
+      if (resultado && resultado.ok) {
+        setConfirmModalVisible(false);
+        setClaseAEliminar(null);
+        await refreshClases();
+        
+        if (Platform.OS !== 'web') {
+          Alert.alert("✅ Eliminado", `La clase "${nombre}" fue eliminada correctamente.`);
+        }
+      } else {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo eliminar la clase");
       }
-    } else {
-      Alert.alert("Error", resultado.mensaje || "No se pudo eliminar la clase");
+    } catch (error) {
+      Alert.alert("❌ Error", error.message || "Error al eliminar la clase");
+    } finally {
+      setCargando(false);
     }
-  }, [claseAEliminar]);
+  }, [claseAEliminar, usuario.token, refreshClases]);
 
   // Cancelar eliminación
   const cancelarEliminacion = useCallback(() => {

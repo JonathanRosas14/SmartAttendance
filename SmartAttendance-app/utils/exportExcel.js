@@ -20,7 +20,7 @@ function generarCSV(estudiantesClase, asistenciasClase, nombreClase) {
     
     return [
       estudiante.nombre,
-      estudiante.id,
+      estudiante.numero_identificacion || estudiante.id,
       estudiante.celular,
       asistio ? 'Sí' : '',
       asistio ? '' : 'Sí',
@@ -114,7 +114,7 @@ export async function exportarAsistenciaPorSesion(
 
     // Crear filas con los datos de cada estudiante
     const filas = estudiantes.map((est) => {
-      const fila = [est.nombre, est.id, est.celular];
+      const fila = [est.nombre, est.numero_identificacion || est.id, est.celular];
       
       // Para cada sesión, verificar si el estudiante asistió
       sesiones.forEach((sesion) => {

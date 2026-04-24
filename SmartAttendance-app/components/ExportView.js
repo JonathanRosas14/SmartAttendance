@@ -27,24 +27,20 @@ import chart from "../assets/icons/chart.png";
 import * as FileSystem from 'expo-file-system';
 import * as Sharing from 'expo-sharing';
 
-// Importamos funciones del controlador para obtener datos de clases y asistencias
+// Importamos funciones de API para obtener datos desde el backend
 import {
-  obtenerClases,
-  obtenerSesionesPorClase,
-  obtenerTodasLasSesiones,
-  obtenerEstudiantesPorClase,
-  calcularAsistenciaPorClase,
-  obtenerTodosEstudiantes,
-} from "../controllers/asistenciaController";
+  obtenerClasesAPI,
+  obtenerAsistenciasAPI,
+  obtenerEstadisticasAsistenciaAPI,
+  obtenerAsistenciasDetalladoAPI,
+  obtenerEstudiantesAPI,
+} from "../services/api";
 
 // Importamos la función para exportar a Excel
 import {
   exportarAsistenciaExcel,
   exportarAsistenciaPorSesion,
 } from "../utils/exportExcel";
-
-// Accedemos a los datos de asistencia directamente
-import { asistencias } from "../models/clases";
 
 // Paleta de colores
 const COLORS = {
@@ -79,16 +75,15 @@ function formatearFecha(fechaStr = "") {
 }
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ExportView({ setPantalla, onLogout }) {
+export default function ExportView({ usuario, setPantalla, onLogout }) {
+  const token = usuario?.token;
   const [menuVisible, setMenuVisible] = useState(false);
 
   // ── Clases ────────────────────────────────────────────────────────────────
-  const [clases, setClases] = useState(() => obtenerClases());
+  const [clases, setClases] = useState([]);
   
-  // ✅ CORREGIDO: Guardar solo el ID para evitar problemas de referencia
-  const [claseSeleccionadaId, setClaseSeleccionadaId] = useState(
-    () => obtenerClases()[0]?.id || null
-  );
+  // ✅ Guardar solo el ID para evitar problemas de referencia
+  const [claseSeleccionadaId, setClaseSeleccionadaId] = useState(null);
   
   // Obtener el objeto clase completo basado en el ID
   const claseSeleccionada = clases.find(c => c.id === claseSeleccionadaId) || null;
@@ -106,18 +101,44 @@ export default function ExportView({ setPantalla, onLogout }) {
   // ── Navegación ────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("export");
 
-  // ✅ USEEFFECT CORREGIDO - Se ejecuta cuando cambia el ID de clase
+  // ✅ Cargar clases cuando el componente se monta
   useEffect(() => {
-    console.log('🔄 useEffect ejecutado - claseSeleccionadaId:', claseSeleccionadaId);
-    refreshDatos();
-  }, [claseSeleccionadaId]); // ✅ Dependencia simple: solo el ID
+    if (token) {
+      cargarClases();
+    }
+  }, [token]);
 
-  // ✅ FUNCIÓN PARA RECARGAR DATOS REALES - CORREGIDA
-  const refreshDatos = useCallback(() => {
+  // ✅ Cargar datos de asistencia cuando cambia la clase seleccionada
+  useEffect(() => {
+    if (claseSeleccionadaId && token) {
+      refreshDatos();
+    }
+  }, [claseSeleccionadaId, token]);
+
+  // ✅ Cargar clases desde el backend
+  const cargarClases = async () => {
+    try {
+      const resultado = await obtenerClasesAPI(token);
+      if (resultado.ok) {
+        setClases(resultado.clases);
+        // Seleccionar la primera clase por defecto
+        if (resultado.clases.length > 0) {
+          setClaseSeleccionadaId(resultado.clases[0].id);
+        }
+      } else {
+        console.error('Error al cargar clases:', resultado.mensaje);
+      }
+    } catch (error) {
+      console.error('Error cargando clases:', error);
+    }
+  };
+
+  // ✅ FUNCIÓN PARA RECARGAR DATOS DEL BACKEND
+  const refreshDatos = useCallback(async () => {
     console.log('📊 refreshDatos llamado para claseId:', claseSeleccionadaId);
     
-    if (!claseSeleccionadaId) {
-      console.log('⚠️ No hay clase seleccionada');
+    if (!claseSeleccionadaId || !token) {
+      console.log('⚠️ No hay clase seleccionada o token');
       setSesiones([]);
       setEstadisticas([]);
       return;
@@ -125,21 +146,36 @@ export default function ExportView({ setPantalla, onLogout }) {
 
     setCargando(true);
     
-    // Pequeño delay para mostrar feedback visual
-    setTimeout(() => {
-      // ✅ USAR EL ID DIRECTAMENTE - no dependemos del objeto
-      const sesionesData = obtenerSesionesPorClase(claseSeleccionadaId);
-      console.log('✅ Sesiones obtenidas:', sesionesData.length);
-      setSesiones(sesionesData);
+    try {
+      // Obtener sesiones y estadísticas del backend en paralelo
+      const [sesionesResult, estadisticasResult] = await Promise.all([
+        obtenerAsistenciasAPI(claseSeleccionadaId, token),
+        obtenerEstadisticasAsistenciaAPI(claseSeleccionadaId, token)
+      ]);
 
-      // Obtener estadísticas de asistencia
-      const statsData = calcularAsistenciaPorClase(claseSeleccionadaId);
-      console.log('✅ Estadísticas obtenidas:', statsData.length);
-      setEstadisticas(statsData);
-      
+      if (sesionesResult.ok) {
+        console.log('✅ Sesiones obtenidas:', sesionesResult.sesiones?.length || 0);
+        setSesiones(sesionesResult.sesiones || []);
+      } else {
+        console.error('❌ Error en sesiones:', sesionesResult.mensaje);
+        setSesiones([]);
+      }
+
+      if (estadisticasResult.ok) {
+        console.log('✅ Estadísticas obtenidas:', estadisticasResult.estadisticas?.length || 0);
+        setEstadisticas(estadisticasResult.estadisticas || []);
+      } else {
+        console.error('❌ Error en estadísticas:', estadisticasResult.mensaje);
+        setEstadisticas([]);
+      }
+    } catch (error) {
+      console.error('❌ Error cargando datos:', error);
+      setSesiones([]);
+      setEstadisticas([]);
+    } finally {
       setCargando(false);
-    }, 300);
-  }, [claseSeleccionadaId]);
+    }
+  }, [claseSeleccionadaId, token]);
 
   // ── Seleccionar clase ─────────────────────────────────────────────────────
   const handleSeleccionarClase = (clase) => {
@@ -167,17 +203,45 @@ export default function ExportView({ setPantalla, onLogout }) {
     try {
       setCargando(true);
       
-      const estudiantesClase = obtenerEstudiantesPorClase(claseSeleccionadaId);
+      // Obtener estudiantes de la clase y asistencias detalladas
+      const [estudiantesResult, asistenciasResult] = await Promise.all([
+        obtenerEstudiantesAPI(claseSeleccionadaId, token),
+        obtenerAsistenciasDetalladoAPI(claseSeleccionadaId, token)
+      ]);
+
+      if (!estudiantesResult.ok || !asistenciasResult.ok) {
+        Alert.alert("Error", "No se pudieron obtener los datos.");
+        setCargando(false);
+        return;
+      }
+
       // Filtrar asistencias solo de la sesión seleccionada
-      const asistenciasClase = asistencias.filter(
-        (a) => a.claseId === claseSeleccionadaId && a.fecha === fechaSeleccionada
+      const asistenciasSessionEspecifica = (asistenciasResult.asistencias || []).filter(
+        (a) => a.fecha === fechaSeleccionada
       );
       
-      if (asistenciasClase.length === 0) {
+      if (asistenciasSessionEspecifica.length === 0) {
         setCargando(false);
         Alert.alert("Sin datos", `No hay asistencias registradas para ${formatearFecha(fechaSeleccionada)}`);
         return;
       }
+
+      // Transformar datos para compatibilidad con exportarAsistenciaExcel
+      const estudiantesClase = (estudiantesResult.estudiantes || []).map(e => ({
+        id: e.id,
+        numero_identificacion: e.numero_identificacion,
+        nombre: e.nombre,
+        celular: e.celular || '',
+        claseId: claseSeleccionadaId
+      }));
+
+      const asistenciasClase = asistenciasSessionEspecifica.map(a => ({
+        estudianteId: a.estudiante_id,
+        claseId: claseSeleccionadaId,
+        fecha: a.fecha,
+        hora: a.hora,
+        tipo: a.tipo
+      }));
 
       // Exportar solo esta sesión
       const resultado = await exportarAsistenciaExcel(
@@ -192,7 +256,7 @@ export default function ExportView({ setPantalla, onLogout }) {
       if (resultado.ok) {
         Alert.alert(
           "✅ Exportado", 
-          `Asistencia de ${formatearFecha(fechaSeleccionada)} exportada`
+          resultado.mensaje || `Asistencia de ${formatearFecha(fechaSeleccionada)} exportada`
         );
       } else {
         Alert.alert("Error", resultado.mensaje);
@@ -205,7 +269,7 @@ export default function ExportView({ setPantalla, onLogout }) {
     }
   };
 
-  // ✅✅✅ EXPORTAR A EXCEL - NUEVA IMPLEMENTACIÓN SIMPLIFICADA
+  // ✅ EXPORTAR A EXCEL - COMPLETO
   const handleExportar = async () => {
     console.log('📤 Iniciando exportación...');
     
@@ -226,11 +290,40 @@ export default function ExportView({ setPantalla, onLogout }) {
     try {
       setCargando(true);
       
-      // Obtener datos necesarios
-      const estudiantesClase = obtenerEstudiantesPorClase(claseSeleccionadaId);
-      const asistenciasClase = asistencias.filter(
-        (a) => a.claseId === claseSeleccionadaId
-      );
+      // Obtener estudiantes de la clase y asistencias detalladas
+      const [estudiantesResult, asistenciasResult] = await Promise.all([
+        obtenerEstudiantesAPI(claseSeleccionadaId, token),
+        obtenerAsistenciasDetalladoAPI(claseSeleccionadaId, token)
+      ]);
+
+      if (!estudiantesResult.ok || !asistenciasResult.ok) {
+        Alert.alert("Error", "No se pudieron obtener los datos.");
+        setCargando(false);
+        return;
+      }
+
+      const asistenciasClase = (asistenciasResult.asistencias || []).map(a => ({
+        estudianteId: a.estudiante_id,
+        claseId: claseSeleccionadaId,
+        fecha: a.fecha,
+        hora: a.hora,
+        tipo: a.tipo
+      }));
+      
+      if (asistenciasClase.length === 0) {
+        Alert.alert("Sin datos", "No hay datos de asistencia para exportar.");
+        setCargando(false);
+        return;
+      }
+
+      // Transformar datos de estudiantes
+      const estudiantesClase = (estudiantesResult.estudiantes || []).map(e => ({
+        id: e.id,
+        numero_identificacion: e.numero_identificacion,
+        nombre: e.nombre,
+        celular: e.celular || '',
+        claseId: claseSeleccionadaId
+      }));
       
       // Llamar a la función de exportación
       const resultado = await exportarAsistenciaExcel(
@@ -245,7 +338,7 @@ export default function ExportView({ setPantalla, onLogout }) {
       if (resultado.ok) {
         Alert.alert(
           "✅ Exportado", 
-          "Asistencia exportada correctamente a Excel"
+          resultado.mensaje || "Asistencia exportada correctamente"
         );
       } else {
         Alert.alert("Error", resultado.mensaje);
@@ -275,14 +368,44 @@ export default function ExportView({ setPantalla, onLogout }) {
     try {
       setCargando(true);
       
-      const estudiantesClase = obtenerEstudiantesPorClase(claseSeleccionadaId);
-      const asistenciasClase = asistencias.filter(
-        (a) => a.claseId === claseSeleccionadaId
-      );
+      // Obtener estudiantes y asistencias
+      const [estudiantesResult, asistenciasResult] = await Promise.all([
+        obtenerEstudiantesAPI(claseSeleccionadaId, token),
+        obtenerAsistenciasDetalladoAPI(claseSeleccionadaId, token)
+      ]);
+
+      if (!estudiantesResult.ok || !asistenciasResult.ok) {
+        Alert.alert("Error", "No se pudieron obtener los datos.");
+        setCargando(false);
+        return;
+      }
+
+      // Transformar datos
+      const estudiantesClase = (estudiantesResult.estudiantes || []).map(e => ({
+        id: e.id,
+        numero_identificacion: e.numero_identificacion,
+        nombre: e.nombre,
+        celular: e.celular || '',
+        claseId: claseSeleccionadaId
+      }));
+
+      const asistenciasClase = (asistenciasResult.asistencias || []).map(a => ({
+        estudianteId: a.estudiante_id,
+        claseId: claseSeleccionadaId,
+        fecha: a.fecha,
+        hora: a.hora,
+        tipo: a.tipo
+      }));
+
+      // Sesiones formateadas para exportación
+      const sesionesFormato = sesiones.map(s => ({
+        fecha: s.fecha,
+        total: s.total
+      }));
       
       const resultado = await exportarAsistenciaPorSesion(
         claseSeleccionada?.nombre || "Asistencia",
-        sesiones,
+        sesionesFormato,
         estudiantesClase,
         asistenciasClase
       );
@@ -292,7 +415,7 @@ export default function ExportView({ setPantalla, onLogout }) {
       if (resultado.ok) {
         Alert.alert(
           "✅ Exportado", 
-          "Asistencia detallada exportada correctamente"
+          resultado.mensaje || "Asistencia detallada exportada correctamente"
         );
       } else {
         Alert.alert("Error", resultado.mensaje);
@@ -429,9 +552,9 @@ export default function ExportView({ setPantalla, onLogout }) {
         {/* Título */}
         <Text style={styles.panelTitle}>Exportar asistencia</Text>
 
-        {/* DEBUG INFO - Quitar en producción */}
+        {/* DEBUG INFO */}
         <Text style={styles.debugText}>
-          Clase ID: {claseSeleccionadaId || 'Ninguna'} | 
+          Clase ID: {claseSeleccionadaId || 'Cargando...'} | 
           Sesiones: {sesiones.length} | 
           Estudiantes: {estadisticas.length}
         </Text>

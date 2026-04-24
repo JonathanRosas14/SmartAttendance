@@ -1,3 +1,4 @@
+// asistenciaController.js - Controlador principal para manejar la lógica de clases, estudiantes y asistencias
 import { estudiantes } from "../models/estudiantes";
 import { 
   clases, 

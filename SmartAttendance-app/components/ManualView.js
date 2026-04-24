@@ -25,10 +25,10 @@ import planning from "../assets/icons/planning.png";
 
 // Importamos las funciones para obtener clases, estudiantes, y guardar asistencia manual
 import {
-  obtenerClases,
-  obtenerEstudiantesPorClase,
-  guardarAsistenciaManual,
-} from "../controllers/asistenciaController";
+  obtenerClasesAPI,
+  obtenerEstudiantesAPI,
+  registrarAsistenciaManualAPI,
+} from "../services/api";
 
 // Paleta de colores
 const COLORS = {
@@ -76,43 +76,97 @@ function getAvatarColor(id = "") {
 
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ManualView({ setPantalla, onLogout }) {
+export default function ManualView({ usuario, setPantalla, onLogout }) {
   const [menuVisible, setMenuVisible] = useState(false);
 
   // ── Clases ────────────────────────────────────────────────────────────────
-  const [clases] = useState(() => obtenerClases());
-  const [claseSeleccionada, setClaseSeleccionada] = useState(
-    () => obtenerClases()[0] || null
-  );
+  const [clases, setClases] = useState([]);
+  const [claseSeleccionada, setClaseSeleccionada] = useState(null);
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
   // ── Estudiantes y sus estados de asistencia ───────────────────────────────
   // estados: { [estudianteId]: "asistio" | "falto" | null }
-  const [estudiantes, setEstudiantes] = useState(() =>
-    claseSeleccionada
-      ? obtenerEstudiantesPorClase(claseSeleccionada.id)
-      : []
-  );
+  const [estudiantes, setEstudiantes] = useState([]);
   const [asistenciaMap, setAsistenciaMap] = useState({});
 
   // ── Búsqueda ──────────────────────────────────────────────────────────────
   const [busqueda, setBusqueda] = useState("");
 
+  // ── Estado de carga ───────────────────────────────────────────────────────
+  const [cargando, setCargando] = useState(false);
+
+  // ── Cargar clases al montar el componente ──────────────────────────────────
+  useEffect(() => {
+    const cargarClases = async () => {
+      try {
+        const resultado = await obtenerClasesAPI(usuario.token);
+        if (resultado && resultado.ok) {
+          const clases = resultado.clases || [];
+          setClases([...clases]);
+          if (clases.length > 0) {
+            setClaseSeleccionada(clases[0]);
+            const estudiantesResult = await obtenerEstudiantesAPI(clases[0].id, usuario.token);
+            if (estudiantesResult && (estudiantesResult.ok ? Array.isArray(estudiantesResult.estudiantes) : Array.isArray(estudiantesResult))) {
+              const estudiantes = estudiantesResult.ok ? estudiantesResult.estudiantes : estudiantesResult;
+              setEstudiantes([...estudiantes]);
+            }
+          }
+        } else if (resultado && Array.isArray(resultado)) {
+          setClases([...resultado]);
+          if (resultado.length > 0) {
+            setClaseSeleccionada(resultado[0]);
+            const estudiantesResult = await obtenerEstudiantesAPI(resultado[0].id, usuario.token);
+            if (estudiantesResult && Array.isArray(estudiantesResult)) {
+              setEstudiantes([...estudiantesResult]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar clases:', error);
+      }
+    };
+    cargarClases();
+  }, [usuario.token]);
+
   // ── Cargar estudiantes cuando se selecciona una clase ────────────────────
   useEffect(() => {
-    if (claseSeleccionada) {
-      setEstudiantes([...obtenerEstudiantesPorClase(claseSeleccionada.id)]);
+    if (claseSeleccionada?.id) {
+      const cargarEstudiantes = async () => {
+        try {
+          const resultado = await obtenerEstudiantesAPI(claseSeleccionada.id, usuario.token);
+          if (resultado && resultado.ok) {
+            const estudiantes = resultado.estudiantes || [];
+            setEstudiantes([...estudiantes]);
+          } else if (resultado && Array.isArray(resultado)) {
+            setEstudiantes([...resultado]);
+          }
+        } catch (error) {
+          console.error('Error al cargar estudiantes:', error);
+        }
+      };
+      cargarEstudiantes();
       setAsistenciaMap({}); // Resetear selecciones
     }
-  }, [claseSeleccionada]);
+  }, [claseSeleccionada?.id, usuario.token]);
 
   // ── Seleccionar clase ─────────────────────────────────────────────────────
-  const handleSeleccionarClase = (clase) => {
+  const handleSeleccionarClase = async (clase) => {
     setClaseSeleccionada(clase);
     setDropdownVisible(false);
     setBusqueda("");
     setAsistenciaMap({});
-    setEstudiantes([...obtenerEstudiantesPorClase(clase.id)]);
+    
+    try {
+      const resultado = await obtenerEstudiantesAPI(clase.id, usuario.token);
+      if (resultado && resultado.ok) {
+        const estudiantes = resultado.estudiantes || [];
+        setEstudiantes([...estudiantes]);
+      } else if (resultado && Array.isArray(resultado)) {
+        setEstudiantes([...resultado]);
+      }
+    } catch (error) {
+      console.error('Error al cargar estudiantes:', error);
+    }
   };
 
   // ── Marcar asistencia ─────────────────────────────────────────────────────
@@ -129,27 +183,40 @@ export default function ManualView({ setPantalla, onLogout }) {
   };
 
   // ── Guardar asistencia ────────────────────────────────────────────────────
-  const handleGuardar = () => {
+  const handleGuardar = async () => {
     if (!claseSeleccionada) {
       Alert.alert("Error", "Selecciona una clase primero.");
       return;
     }
 
-    const registros = estudiantes.map((est) => ({
-      estudianteId: est.id,
-      asistio: asistenciaMap[est.id] === "asistio",
-    }));
+    if (Object.keys(asistenciaMap).length === 0) {
+      Alert.alert("Error", "Marca la asistencia de al menos un estudiante.");
+      return;
+    }
 
-    const resultado = guardarAsistenciaManual({
-      claseId:   claseSeleccionada.id,
-      registros,
-    });
+    setCargando(true);
+    try {
+      const registros = Object.entries(asistenciaMap).map(([estudianteId, estado]) => ({
+        estudianteId: estudianteId,  // Es un string "STU-2026-XXXXX", no un número
+        asistio: estado === "asistio",
+      }));
 
-    if (resultado.ok) {
-      Alert.alert("✅ Guardado", resultado.mensaje);
-      setAsistenciaMap({});
-    } else {
-      Alert.alert("Error", resultado.mensaje);
+      const resultado = await registrarAsistenciaManualAPI(
+        claseSeleccionada.id,
+        registros,
+        usuario.token
+      );
+
+      if (resultado && resultado.ok) {
+        Alert.alert("✅ Éxito", resultado.mensaje || "Asistencia registrada correctamente");
+        setAsistenciaMap({});
+      } else {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo registrar la asistencia");
+      }
+    } catch (error) {
+      Alert.alert("❌ Error", error.message || "Error al guardar asistencia");
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -197,7 +264,7 @@ export default function ManualView({ setPantalla, onLogout }) {
         {/* Info */}
         <View style={styles.estInfo}>
           <Text style={styles.estNombre}>{item.nombre}</Text>
-          <Text style={styles.estId}>ID: {item.id}</Text>
+          <Text style={styles.estId}>ID: {item.numero_identificacion || item.id}</Text>
 
           {/* Botones ASISTIÓ / FALTÓ */}
           <View style={styles.botonesRow}>

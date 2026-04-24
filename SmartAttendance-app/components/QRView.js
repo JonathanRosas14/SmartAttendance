@@ -24,9 +24,9 @@ import qr from "../assets/icons/qr.png";
 
 // Importamos las funciones para obtener clases y generar QR
 import {
-  obtenerClases,
-  generarQRParaClase,
-} from "../controllers/asistenciaController";
+  obtenerClasesAPI,
+  generarQRAPI,
+} from "../services/api";
 
 // Intentamos importar la librería QR. Si no está instalada, el componente sigue funcionando
 let QRCode = null;
@@ -65,14 +65,12 @@ const ROUTES = {
   export:   "ExportView",
 };
 
-export default function QRView({ setPantalla, onLogout }) {
+export default function QRView({ usuario, setPantalla, onLogout }) {
   const [menuVisible, setMenuVisible] = useState(false);
 
   // Clases disponibles
-  const [clases] = useState(() => obtenerClases());
-  const [claseSeleccionada, setClaseSeleccionada] = useState(
-    () => obtenerClases()[0] || null
-  );
+  const [clases, setClases] = useState([]);
+  const [claseSeleccionada, setClaseSeleccionada] = useState(null);
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
   // Estado del QR generado
@@ -94,8 +92,32 @@ export default function QRView({ setPantalla, onLogout }) {
     };
   }, []);
 
+  // ── Cargar clases al montar ───────────────────────────────────────────────
+  useEffect(() => {
+    const cargarClases = async () => {
+      try {
+        const resultado = await obtenerClasesAPI(usuario.token);
+        if (resultado && resultado.ok) {
+          const clases = resultado.clases || [];
+          setClases([...clases]);
+          if (clases.length > 0) {
+            setClaseSeleccionada(clases[0]);
+          }
+        } else if (resultado && Array.isArray(resultado)) {
+          setClases([...resultado]);
+          if (resultado.length > 0) {
+            setClaseSeleccionada(resultado[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar clases:', error);
+      }
+    };
+    cargarClases();
+  }, [usuario.token]);
+
   // ── Generar QR ────────────────────────────────────────────────────────────
-  const handleGenerarQR = useCallback(() => {
+  const handleGenerarQR = useCallback(async () => {
     if (!claseSeleccionada) {
       Alert.alert("Error", "Selecciona una clase primero.");
       return;
@@ -104,16 +126,16 @@ export default function QRView({ setPantalla, onLogout }) {
     setGenerando(true);
 
     try {
-      const resultado = generarQRParaClase(claseSeleccionada.id, QR_DURACION_SEG);
+      const resultado = await generarQRAPI(claseSeleccionada.id, QR_DURACION_SEG, usuario.token);
 
-      if (!resultado.ok) {
-        Alert.alert("Error", resultado.mensaje);
+      if (!resultado || !resultado.ok) {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo generar el QR");
         setGenerando(false);
         return;
       }
 
       // Guardar el QR en estado
-      setQrData(resultado.qr);
+      setQrData(resultado.qr || resultado.data);
       setExpirado(false);
       setSegundos(QR_DURACION_SEG);
       setGenerando(false);
@@ -135,10 +157,10 @@ export default function QRView({ setPantalla, onLogout }) {
 
     } catch (error) {
       console.error("Error al generar QR:", error);
-      Alert.alert("Error", "Hubo un error al generar el QR: " + error.message);
+      Alert.alert("❌ Error", "Error al generar el QR: " + error.message);
       setGenerando(false);
     }
-  }, [claseSeleccionada]);
+  }, [claseSeleccionada, usuario.token]);
 
   // ── Color del timer según tiempo restante ─────────────────────────────────
   const timerColor =
