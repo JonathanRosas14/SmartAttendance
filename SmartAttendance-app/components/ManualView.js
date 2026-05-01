@@ -4,7 +4,7 @@
 // Dependiendo de la selección, la tarjeta del estudiante se pone verde (asistió) o roja (faltó)
 // Al final, el profesor guarda todos los registros en lote
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -18,7 +18,8 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
-  Image
+  Image,
+  AppState
 } from "react-native";
 
 import planning from "../assets/icons/planning.png";
@@ -30,26 +31,7 @@ import {
   registrarAsistenciaManualAPI,
 } from "../services/api";
 
-// Paleta de colores
-const COLORS = {
-  primary:     "#1A3A6B",
-  accent:      "#3B82F6",
-  background:  "#F0F4FA",
-  card:        "#FFFFFF",
-  inputBg:     "#F5F7FC",
-  iconBg:      "#DDE8F8",
-  text:        "#1A2B4A",
-  textMuted:   "#6B7A99",
-  border:      "#D8E2F0",
-  white:       "#FFFFFF",
-  navBorder:   "#E2E8F0",
-  green:       "#16A34A",
-  greenLight:  "#DCFCE7",
-  greenBorder: "#22C55E",
-  red:         "#DC2626",
-  redLight:    "#FEE2E2",
-  redBorder:   "#EF4444",
-};
+import { Header, COLORS } from "../theme";
 
 // Colores para avatares de iniciales (para que se vea mejor visualmente)
 const AVATAR_COLORS = [
@@ -77,6 +59,7 @@ function getAvatarColor(id = "") {
 
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ManualView({ usuario, setPantalla, onLogout }) {
+  const appState = useRef(AppState.currentState);
   const [menuVisible, setMenuVisible] = useState(false);
 
   // ── Clases ────────────────────────────────────────────────────────────────
@@ -94,6 +77,22 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
 
   // ── Estado de carga ───────────────────────────────────────────────────────
   const [cargando, setCargando] = useState(false);
+
+  // ── Limpiar UI states cuando la app se reanuda (AppState) ────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  const handleAppStateChange = (nextAppState) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App ha reanudado - limpiar todos los estados UI
+      setMenuVisible(false);
+      setDropdownVisible(false);
+      setBusqueda("");
+    }
+    appState.current = nextAppState;
+  };
 
   // ── Cargar clases al montar el componente ──────────────────────────────────
   useEffect(() => {
@@ -148,6 +147,15 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
       setAsistenciaMap({}); // Resetear selecciones
     }
   }, [claseSeleccionada?.id, usuario.token]);
+
+  // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+  useEffect(() => {
+    return () => {
+      setMenuVisible(false);
+      setDropdownVisible(false);
+      setBusqueda("");
+    };
+  }, []);
 
   // ── Seleccionar clase ─────────────────────────────────────────────────────
   const handleSeleccionarClase = async (clase) => {
@@ -326,36 +334,11 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      {/* ── HEADER ────────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.menuBtn} 
-          accessibilityLabel="Menú"
-          onPress={() => setMenuVisible(!menuVisible)}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>SmartAttendance</Text>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarWrapText}>👤</Text>
-        </View>
-      </View>
-
-      {/* Menú desplegable */}
-      {menuVisible && (
-        <View style={styles.menuDropdown}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              if (onLogout) onLogout();
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.menuItemText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+      />
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
       <ScrollView
@@ -501,58 +484,6 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-  },
-  menuBtn:    { padding: 4 },
-  menuIcon:   { fontSize: 20, color: COLORS.primary },
-  headerTitle: {
-    fontSize: 18, fontWeight: "700",
-    color: COLORS.primary, letterSpacing: 0.3,
-  },
-  avatarWrap: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarWrapText: { fontSize: 20 },
-
-  // Menú desplegable
-  menuDropdown: {
-    position: "absolute",
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-    zIndex: 100,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
-  },
-
   // Título
   panelTitle: {
     fontSize: 26, fontWeight: "800",
@@ -674,10 +605,7 @@ const styles = StyleSheet.create({
   guardarWrap: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: 70,
     backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.navBorder,
     position: 'absolute',
     bottom: 0,
     left: 0,

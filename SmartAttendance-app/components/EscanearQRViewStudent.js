@@ -21,26 +21,45 @@ import {
 // Importamos las funciones de cámara de expo
 import { useCameraPermissions } from "expo-camera";
 import { CameraView } from "expo-camera";
+// Importamos para obtener ID real del dispositivo
+import * as Device from "expo-device";
 
 import qr from "../assets/icons/qr.png";
 
 // Importamos la función API para registrar asistencia
 import { registrarAsistenciaQRAPI } from "../services/api";
 
-const COLORS = {
-  primary: "#1A3A6B",
-  accent: "#3B82F6",
-  background: "#F0F4FA",
-  card: "#FFFFFF",
-  inputBg: "#F5F7FC",
-  text: "#1A2B4A",
-  textMuted: "#6B7A99",
-  border: "#D8E2F0",
-  white: "#FFFFFF",
-  navBorder: "#E2E8F0",
-  green: "#16A34A",
-  red: "#DC2626",
-};
+import { Header, COLORS } from "../theme";
+
+// Función para obtener el número de serie del dispositivo (único para cada teléfono)
+function obtenerNumeroSerieDispositivo() {
+  try {
+    // Obtener información del dispositivo usando expo-device
+    // En móviles reales da el serial number, en simuladores/web da un ID único
+    const serialNumber = Device.serialNumber;
+    
+    if (serialNumber && serialNumber !== 'unknown') {
+      return serialNumber;
+    }
+    
+    // Si no está disponible serialNumber, usar osInternalBuildId
+    if (Device.osInternalBuildId) {
+      return Device.osInternalBuildId;
+    }
+
+    // Fallback: generar basado en datos disponibles del dispositivo
+    const fallback = `${Device.manufacturer}-${Device.model}-${Device.osVersion}`;
+    if (fallback !== 'undefined-undefined-undefined') {
+      return fallback;
+    }
+    
+    // Último recurso: ID aleatorio (solo si todo falla)
+    return `DEVICE-${Math.random().toString(36).substring(2, 11)}`;
+  } catch (error) {
+    console.error('Error obteniendo número de serie:', error);
+    return 'unknown';
+  }
+}
 
 export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVisible, onLogout }) {
   // Controla si la cámara está abierta
@@ -103,11 +122,15 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
         return;
       }
 
+      // Obtener el número de serie del dispositivo
+      const numeroSerie = obtenerNumeroSerieDispositivo();
+
       // Llamar API para registrar asistencia
       const resultado = await registrarAsistenciaQRAPI(
         usuario.numero_identificacion,
         claseId,
         data,
+        numeroSerie,
         usuario.token
       );
 
@@ -143,34 +166,24 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
     }
   };
 
+  // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+  useEffect(() => {
+    return () => {
+      setCamaraAbierta(false);
+      setCargando(false);
+      scannedRef.current = false;
+    };
+  }, []);
+
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.menuBtn} onPress={() => setMenuVisible(!menuVisible)}>
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>SmartAttendance</Text>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarIcon}>👤</Text>
-        </View>
-      </View>
-
-      {menuVisible && (
-        <View style={styles.menuDropdown}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              if (onLogout) onLogout();
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.menuItemText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+      />
 
       {!camaraAbierta ? (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
@@ -231,49 +244,6 @@ const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: COLORS.white },
   scroll: { flex: 1, backgroundColor: COLORS.background },
   scrollContent: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 24 },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-  },
-  menuBtn: { padding: 4 },
-  menuIcon: { fontSize: 20, color: COLORS.primary },
-  headerTitle: { fontSize: 17, fontWeight: "700", color: COLORS.primary, letterSpacing: 0.3 },
-  avatarWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarIcon: { fontSize: 20 },
-
-  menuDropdown: {
-    position: "absolute",
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-    zIndex: 100,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemText: { fontSize: 15, fontWeight: "600", color: COLORS.text },
 
   bienvenidoLabel: {
     fontSize: 11,

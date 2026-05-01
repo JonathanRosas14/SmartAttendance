@@ -5,7 +5,7 @@
  * ✅ Compatible con: iOS, Android, Web, Emulador, PC
  */
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -19,7 +19,8 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
-  Image
+  Image,
+  AppState
 } from "react-native";
 
 import calendario from "../assets/icons/calendario.png";
@@ -35,23 +36,7 @@ import {
   obtenerClasesAPI,
 } from "../services/api";
 
-const COLORS = {
-  primary:     "#1A3A6B",
-  primaryLight:"#2454A0",
-  accent:      "#3B82F6",
-  background:  "#F0F4FA",
-  card:        "#FFFFFF",
-  cardAlt:     "#EEF2FA",
-  iconBg:      "#DDE8F8",
-  text:        "#1A2B4A",
-  textMuted:   "#6B7A99",
-  border:      "#D8E2F0",
-  error:       "#EF4444",
-  success:     "#22C55E",
-  white:       "#FFFFFF",
-  navBorder:   "#E2E8F0",
-  inputBg:     "#F5F7FC",
-};
+import { Header, COLORS } from "../theme";
 
 // ✅ COMPONENTE TIME PICKER CUSTOM - Funciona en Web, Android, iOS
 function TimePickerModal({ visible, onSelect, onCancel, initialValue, title }) {
@@ -419,6 +404,7 @@ const confirmStyles = StyleSheet.create({
 
 // ─── Componente principal ────────────────────────────────────────────────────
 export default function ProfesorView({ usuario, setPantalla, onLogout }) {
+  const appState = useRef(AppState.currentState);
   // Estados unificados de formulario
   const [formData, setFormData] = useState({
     nombre: "",
@@ -462,6 +448,22 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
       console.error('Error al refrescar clases:', error);
     }
   }, [usuario.token]);
+
+  // ── Limpiar UI states cuando la app se reanuda (AppState) ────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  const handleAppStateChange = (nextAppState) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App ha reanudado - limpiar todos los estados UI
+      setMenuVisible(false);
+      setPickerVisible(false);
+      setConfirmModalVisible(false);
+    }
+    appState.current = nextAppState;
+  };
 
   // ✅ CARGAR CLASES AL MONTAR EL COMPONENTE
   useEffect(() => {
@@ -600,6 +602,17 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
     setClaseAEliminar(null);
   }, []);
 
+  // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+  useEffect(() => {
+    return () => {
+      setMenuVisible(false);
+      setPickerVisible(false);
+      setConfirmModalVisible(false);
+      setEditandoId(null);
+      setClaseAEliminar(null);
+    };
+  }, []);
+
   // Render ítem de clase (MEMOIZADO)
   const renderClaseItem = useMemo(() => {
     return ({ item }) => {
@@ -705,35 +718,11 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      {/* Header fijo */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.menuBtn}
-          onPress={() => setMenuVisible(!menuVisible)}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>SmartAttendance</Text>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarText}>👤</Text>
-        </View>
-      </View>
-
-      {/* Menú desplegable */}
-      {menuVisible && (
-        <View style={styles.menuDropdown}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              if (onLogout) onLogout();
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.menuItemText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+      />
 
       <ScrollView
         style={styles.scrollView}
@@ -853,63 +842,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
     paddingTop: 20,
     paddingBottom: 180,
-  },
-
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-  },
-  menuBtn: { padding: 4 },
-  menuIcon: { fontSize: 20, color: COLORS.primary },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: COLORS.primary,
-    letterSpacing: 0.3,
-  },
-  avatarWrap: {
-    width: 38,
-    height: 38,
-    borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarText: { fontSize: 20 },
-
-  // Menú desplegable
-  menuDropdown: {
-    position: "absolute",
-    top: 62,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-    zIndex: 100,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
   },
 
   panelTitle: {

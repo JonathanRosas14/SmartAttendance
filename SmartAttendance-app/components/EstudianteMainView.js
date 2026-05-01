@@ -22,17 +22,7 @@ import plannig from "../assets/icons/planning.png";
 import EscanearQRView from "./EscanearQRViewStudent";
 import HistorialView from "./HistorialViewStudent";
 
-const COLORS = {
-  primary:    "#1A3A6B",
-  accent:     "#3B82F6",
-  background: "#F0F4FA",
-  card:       "#FFFFFF",
-  text:       "#1A2B4A",
-  textMuted:  "#6B7A99",
-  border:     "#D8E2F0",
-  white:      "#FFFFFF",
-  navBorder:  "#E2E8F0",
-};
+import { Header, COLORS } from "../theme";
 
 export default function EstudianteMainView({ usuario, onLogout }) {
   // Pantalla actual que se está viendo (qr o historial)

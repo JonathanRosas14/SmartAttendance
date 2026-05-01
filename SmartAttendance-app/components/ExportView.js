@@ -5,7 +5,7 @@
 //   - Ver un resumen de las sesiones de clase (cada día que se registró asistencia)
 //   - Exportar a CSV usando el sistema de archivos del dispositivo
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -18,10 +18,12 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
-  Image
+  Image,
+  AppState
 } from "react-native";
 
 import chart from "../assets/icons/chart.png";
+import warning from "../assets/icons/warning.png";
 
 // Importamos funciones para trabajar con archivo (pero no usamos aquí, están disponibles)
 import * as FileSystem from 'expo-file-system';
@@ -42,22 +44,7 @@ import {
   exportarAsistenciaPorSesion,
 } from "../utils/exportExcel";
 
-// Paleta de colores
-const COLORS = {
-  primary:    "#1A3A6B",
-  accent:     "#3B82F6",
-  background: "#F0F4FA",
-  card:       "#FFFFFF",
-  inputBg:    "#F5F7FC",
-  iconBg:     "#DDE8F8",
-  text:       "#1A2B4A",
-  textMuted:  "#6B7A99",
-  border:     "#D8E2F0",
-  white:      "#FFFFFF",
-  navBorder:  "#E2E8F0",
-  green:      "#16A34A",
-  red:        "#DC2626",
-};
+import { Header, COLORS } from "../theme";
 
 // Función auxiliar para convertir fechas a un formato más legible
 // Por ejemplo: "2025-04-14" → "Apr 14, 2025"
@@ -74,8 +61,54 @@ function formatearFecha(fechaStr = "") {
   }
 }
 
+// Función para detectar números de serie duplicados (suplantación)
+function detectarSuplantacion(asistencias, estudiantes) {
+  // Crear un mapa de número de serie → array de estudiantes
+  const mapaSerieEstudiantes = {};
+  
+  asistencias.forEach(asistencia => {
+    const numeroSerie = asistencia.mac_address || 'sin-serie';
+    
+    // Encontrar el estudiante asociado
+    const estudiante = estudiantes.find(e => e.id === asistencia.estudianteId);
+    
+    if (!mapaSerieEstudiantes[numeroSerie]) {
+      mapaSerieEstudiantes[numeroSerie] = [];
+    }
+    
+    mapaSerieEstudiantes[numeroSerie].push(estudiante?.nombre || `Estudiante ${asistencia.estudianteId}`);
+  });
+  
+  // Filtrar solo los números de serie que aparecen más de una vez
+  const seriesDuplicadas = Object.entries(mapaSerieEstudiantes).filter(
+    ([serie, estudiantes]) => estudiantes.length > 1
+  );
+  
+  return seriesDuplicadas.length > 0 ? seriesDuplicadas : null;
+}
+
+// Función auxiliar para mostrar alerta de suplantación
+function mostrarAlertaSuplantacion(seriesDuplicadas) {
+  let mensaje = "⚠️ ALERTA DE SUPLANTACIÓN DETECTADA\n\n";
+  mensaje += "Se detectó que múltiples estudiantes están usando el mismo dispositivo:\n\n";
+  
+  seriesDuplicadas.forEach(([serie, estudiantesLista], index) => {
+    mensaje += `📱 Dispositivo ${index + 1} (Serie: ${serie.substring(0, 8)}...)\n`;
+    estudiantesLista.forEach(nombre => {
+      mensaje += `   • ${nombre}\n`;
+    });
+    mensaje += "\n";
+  });
+  
+  mensaje += "Esto podría indicar que un estudiante está suplantando a otro.\n";
+  mensaje += "Revisa manualmente antes de proceder.";
+  
+  return mensaje;
+}
+
 // ─── Componente principal ─────────────────────────────────────────────────────
 export default function ExportView({ usuario, setPantalla, onLogout }) {
+  const appState = useRef(AppState.currentState);
   const token = usuario?.token;
   const [menuVisible, setMenuVisible] = useState(false);
 
@@ -97,9 +130,28 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
   const [cargando, setCargando] = useState(false);
   const [fechaSeleccionada, setFechaSeleccionada] = useState(null);
   const [modoExportacion, setModoExportacion] = useState("completo"); // "completo" | "sesion"
+  
+  // ── Estados para suplantación ──────────────────────────────────────────────
+  const [suplantacionDetectada, setSuplantacionDetectada] = useState(null);
+  const [mostrarTooltip, setMostrarTooltip] = useState(false);
 
   // ── Navegación ────────────────────────────────────────────────────────────
   const [activeTab, setActiveTab] = useState("export");
+
+  // ── Limpiar UI states cuando la app se reanuda (AppState) ────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  const handleAppStateChange = (nextAppState) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App ha reanudado - limpiar todos los estados UI
+      setMenuVisible(false);
+      setDropdownVisible(false);
+    }
+    appState.current = nextAppState;
+  };
 
   // ✅ Cargar clases cuando el componente se monta
   useEffect(() => {
@@ -114,6 +166,18 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
       refreshDatos();
     }
   }, [claseSeleccionadaId, token]);
+
+  // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+  // Esto previene que los menús/modales se queden visibles cuando regresas a la pantalla
+  useEffect(() => {
+    return () => {
+      setMenuVisible(false);
+      setDropdownVisible(false);
+      setSuplantacionDetectada(null);
+      setVerTodas(false);
+      setFechaSeleccionada(null);
+    };
+  }, []);
 
   // ✅ Cargar clases desde el backend
   const cargarClases = async () => {
@@ -183,7 +247,55 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
     setClaseSeleccionadaId(clase.id); // ✅ Guardar solo el ID
     setDropdownVisible(false);
     setVerTodas(false);
+    setSuplantacionDetectada(null); // Limpiar suplantación anterior
     // Los datos se actualizarán automáticamente por el useEffect
+  };
+
+  // ✅ DETECTAR SUPLANTACIÓN AL CAMBIAR DE SESIÓN
+  const handleSeleccionarSesion = async (fecha) => {
+    setFechaSeleccionada(fecha);
+    setSuplantacionDetectada(null); // Limpiar estado anterior
+    
+    // Obtener asistencias de esta sesión para detectar suplantación
+    try {
+      const [estudiantesResult, asistenciasResult] = await Promise.all([
+        obtenerEstudiantesAPI(claseSeleccionadaId, token),
+        obtenerAsistenciasDetalladoAPI(claseSeleccionadaId, token)
+      ]);
+
+      if (estudiantesResult.ok && asistenciasResult.ok) {
+        // Filtrar solo asistencias de esta sesión
+        const asistenciasSessionEspecifica = (asistenciasResult.asistencias || []).filter(
+          (a) => a.fecha === fecha
+        );
+
+        const asistenciasClase = asistenciasSessionEspecifica.map(a => ({
+          estudianteId: a.estudiante_id,
+          claseId: claseSeleccionadaId,
+          fecha: a.fecha,
+          hora: a.hora,
+          tipo: a.tipo,
+          mac_address: a.mac_address
+        }));
+
+        const estudiantesClase = (estudiantesResult.estudiantes || []).map(e => ({
+          id: e.id,
+          numero_identificacion: e.numero_identificacion,
+          nombre: e.nombre,
+          celular: e.celular || '',
+          claseId: claseSeleccionadaId
+        }));
+
+        // Detectar suplantación en ESTA sesión
+        const seriesDuplicadas = detectarSuplantacion(asistenciasClase, estudiantesClase);
+        if (seriesDuplicadas) {
+          console.log('⚠️ Suplantación detectada en sesión:', fecha);
+          setSuplantacionDetectada(seriesDuplicadas);
+        }
+      }
+    } catch (error) {
+      console.error('Error detectando suplantación:', error);
+    }
   };
 
   // ✅ EXPORTAR SESIÓN ESPECÍFICA
@@ -202,6 +314,7 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
 
     try {
       setCargando(true);
+      setSuplantacionDetectada(null); // Limpiar alerta anterior
       
       // Obtener estudiantes de la clase y asistencias detalladas
       const [estudiantesResult, asistenciasResult] = await Promise.all([
@@ -240,10 +353,17 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
         claseId: claseSeleccionadaId,
         fecha: a.fecha,
         hora: a.hora,
-        tipo: a.tipo
+        tipo: a.tipo,
+        mac_address: a.mac_address
       }));
 
-      // Exportar solo esta sesión
+      // ✅ DETECCIÓN DE SUPLANTACIÓN - guardar en estado pero continuar exportando
+      const seriesDuplicadas = detectarSuplantacion(asistenciasClase, estudiantesClase);
+      if (seriesDuplicadas) {
+        setSuplantacionDetectada(seriesDuplicadas);
+      }
+
+      // Exportar la sesión
       const resultado = await exportarAsistenciaExcel(
         claseSeleccionadaId,
         `${claseSeleccionada?.nombre} - ${formatearFecha(fechaSeleccionada)}`,
@@ -289,6 +409,7 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
 
     try {
       setCargando(true);
+      setSuplantacionDetectada(null); // Limpiar alerta anterior
       
       // Obtener estudiantes de la clase y asistencias detalladas
       const [estudiantesResult, asistenciasResult] = await Promise.all([
@@ -307,7 +428,8 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
         claseId: claseSeleccionadaId,
         fecha: a.fecha,
         hora: a.hora,
-        tipo: a.tipo
+        tipo: a.tipo,
+        mac_address: a.mac_address
       }));
       
       if (asistenciasClase.length === 0) {
@@ -325,7 +447,13 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
         claseId: claseSeleccionadaId
       }));
       
-      // Llamar a la función de exportación
+      // ✅ DETECCIÓN DE SUPLANTACIÓN - guardar en estado pero continuar exportando
+      const seriesDuplicadas = detectarSuplantacion(asistenciasClase, estudiantesClase);
+      if (seriesDuplicadas) {
+        setSuplantacionDetectada(seriesDuplicadas);
+      }
+      
+      // Exportar todos los datos
       const resultado = await exportarAsistenciaExcel(
         claseSeleccionadaId,
         claseSeleccionada?.nombre || "Asistencia",
@@ -394,7 +522,8 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
         claseId: claseSeleccionadaId,
         fecha: a.fecha,
         hora: a.hora,
-        tipo: a.tipo
+        tipo: a.tipo,
+        mac_address: a.mac_address
       }));
 
       // Sesiones formateadas para exportación
@@ -446,17 +575,41 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
   const renderSesion = ({ item, index }) => {
     const esSeleccionada = fechaSeleccionada === item.fecha;
     
+    // Verificar si hay suplantación detectada en la sesión seleccionada
+    const haySuplantacion = esSeleccionada && suplantacionDetectada && 
+      suplantacionDetectada.length > 0;
+    
     return (
       <TouchableOpacity
         style={[
           styles.sesionRow,
           esSeleccionada && styles.sesionRowSelected,
         ]}
-        onPress={() => setFechaSeleccionada(item.fecha)}
+        onPress={() => handleSeleccionarSesion(item.fecha)}
         activeOpacity={0.7}
       >
         <View style={styles.sesionInfo}>
-          <Text style={styles.sesionFecha}>{formatearFecha(item.fecha)}</Text>
+          <View style={{ flexDirection: 'row', alignItems: 'center', flex: 1 }}>
+            <Text style={styles.sesionFecha}>{formatearFecha(item.fecha)}</Text>
+            {haySuplantacion && (
+              <TouchableOpacity 
+                style={{ marginLeft: 8 }}
+                onPress={() => setMostrarTooltip(!mostrarTooltip)}
+              >
+                <Image source={warning} style={{ width: 20, height: 20 }} />
+              </TouchableOpacity>
+            )}
+          </View>
+          {haySuplantacion && mostrarTooltip && (
+            <Text style={{ 
+              fontSize: 12, 
+              color: COLORS.red, 
+              marginTop: 4,
+              fontWeight: '500'
+            }}>
+              Alerta: Múltiples estudiantes con mismo dispositivo
+            </Text>
+          )}
           <Text style={styles.sesionClase}>
             {claseSeleccionada?.nombre || "Clase"}
           </Text>
@@ -512,36 +665,11 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      {/* ── HEADER ────────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.menuBtn} 
-          accessibilityLabel="Menú"
-          onPress={() => setMenuVisible(!menuVisible)}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>SmartAttendance</Text>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarWrapText}>👤</Text>
-        </View>
-      </View>
-
-      {/* Menú desplegable */}
-      {menuVisible && (
-        <View style={styles.menuDropdown}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              if (onLogout) onLogout();
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.menuItemText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+      />
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
       <ScrollView
@@ -719,58 +847,6 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-  },
-  menuBtn:    { padding: 4 },
-  menuIcon:   { fontSize: 20, color: COLORS.primary },
-  headerTitle: {
-    fontSize: 18, fontWeight: "700",
-    color: COLORS.primary, letterSpacing: 0.3,
-  },
-  avatarWrap: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarWrapText: { fontSize: 20 },
-
-  // Menú desplegable
-  menuDropdown: {
-    position: "absolute",
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-    zIndex: 100,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
-  },
-
   // Título
   panelTitle: {
     fontSize: 26, fontWeight: "800",
@@ -975,10 +1051,7 @@ const styles = StyleSheet.create({
   exportWrap: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: 70,
     backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.navBorder,
     position: 'absolute',
     bottom: 0,
     left: 0,

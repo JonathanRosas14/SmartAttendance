@@ -110,11 +110,12 @@ export async function eliminarEstudianteAPI(estudianteId, claseId, token) {
 }
 
 // ─── Asistencia ──────────────────────────────────────────────────────
-export async function registrarAsistenciaQRAPI(numeroIdentificacion, claseId, qrData, token) {
+export async function registrarAsistenciaQRAPI(numeroIdentificacion, claseId, qrData, macAddress, token) {
   return request('/asistencia/qr', 'POST', {
     numeroIdentificacion,
     claseId,
     qrData,
+    macAddress,
   }, token);
 }
 
@@ -136,6 +137,10 @@ export async function obtenerEstadisticasAsistenciaAPI(claseId, token) {
 
 export async function obtenerAsistenciasDetalladoAPI(claseId, token) {
   return request(`/asistencia/detalle/${claseId}`, 'GET', null, token);
+}
+
+export async function obtenerHistorialEstudianteAPI(token) {
+  return request(`/asistencia/historial`, 'GET', null, token);
 }
 
 // ─── QR ──────────────────────────────────────────────────────────────
