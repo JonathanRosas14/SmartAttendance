@@ -6,7 +6,7 @@
 //   - Agregar nuevos estudiantes a la clase
 //   - Eliminar estudiantes que ya no pertenecen a la clase
 
-import React, { useState, useCallback, useEffect } from "react";
+import React, { useState, useCallback, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -20,36 +20,22 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
-  Image
+  Image,
+  AppState
 } from "react-native";
 
 import trash from "../assets/icons/trash.png";
 import user from "../assets/icons/user.png";
 
-// Importamos las funciones CRUD para manejar estudiantes
+// Importamos las funciones API para manejar estudiantes
 import {
-  obtenerClases,
-  agregarEstudiante,
-  obtenerEstudiantesPorClase,
-  borrarEstudiante,
-} from "../controllers/asistenciaController";
+  obtenerClasesAPI,
+  obtenerEstudiantesAPI,
+  agregarEstudianteAPI,
+  eliminarEstudianteAPI,
+} from "../services/api";
 
-// Paleta de colores (igual que en ProfesorView para consistencia)
-const COLORS = {
-  primary:      "#1A3A6B",
-  primaryLight: "#2454A0",
-  accent:       "#3B82F6",
-  background:   "#F0F4FA",
-  card:         "#FFFFFF",
-  inputBg:      "#F5F7FC",
-  iconBg:       "#DDE8F8",
-  text:         "#1A2B4A",
-  textMuted:    "#6B7A99",
-  border:       "#D8E2F0",
-  white:        "#FFFFFF",
-  navBorder:    "#E2E8F0",
-  error:        "#EF4444",
-};
+import { Header, COLORS } from "../theme";
 
 // Colores para los avatares de iniciales (cada estudiante tiene un color diferente)
 const AVATAR_COLORS = [
@@ -63,152 +49,155 @@ const AVATAR_COLORS = [
 
 // Función para obtener las iniciales del nombre de un estudiante
 function getIniciales(nombre = "") {
-    function getAvatarColor(id = "") {
-    const sum = id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
-    return AVATAR_COLORS[sum % AVATAR_COLORS.length];
-    }
+  if (!nombre) return "--";
+  return nombre.split(" ").map(n => n[0]).join("").toUpperCase();
+}
 
-    // ✅ MODAL DE CONFIRMACIÓN PERSONALIZADA PARA ELIMINAR ESTUDIANTE
-    function ConfirmDeleteStudentModal({ visible, studentNombre, onConfirm, onCancel }) {
-      return (
-        <Modal
-          transparent={true}
-          animationType="fade"
-          visible={visible}
-          onRequestClose={onCancel}
-        >
-          <View style={deleteModalStyles.overlay}>
-            <View style={deleteModalStyles.container}>
-              <View style={deleteModalStyles.iconContainer}>
-                <Image source={trash} style={{ height: 28, width: 28 }} />
-              </View>
-              
-              <Text style={deleteModalStyles.title}>Eliminar estudiante</Text>
-              <Text style={deleteModalStyles.message}>
-                ¿Seguro que deseas eliminar{"\n"}
-                <Text style={deleteModalStyles.studentNombre}>"{studentNombre}"</Text>?
-              </Text>
-              <Text style={deleteModalStyles.warning}>
-                Esta acción no se puede deshacer.
-              </Text>
+// Función para obtener el color del avatar basado en el ID
+function getAvatarColor(id = "") {
+  const sum = id.split("").reduce((acc, c) => acc + c.charCodeAt(0), 0);
+  return AVATAR_COLORS[sum % AVATAR_COLORS.length];
+}
 
-              <View style={deleteModalStyles.buttonsRow}>
-                <TouchableOpacity style={deleteModalStyles.btnCancel} onPress={onCancel}>
-                  <Text style={deleteModalStyles.btnCancelText}>Cancelar</Text>
-                </TouchableOpacity>
-                <TouchableOpacity style={deleteModalStyles.btnConfirm} onPress={onConfirm}>
-                  <Text style={deleteModalStyles.btnConfirmText}>Eliminar</Text>
-                </TouchableOpacity>
-              </View>
-            </View>
+// ✅ MODAL DE CONFIRMACIÓN PERSONALIZADA PARA ELIMINAR ESTUDIANTE
+function ConfirmDeleteStudentModal({ visible, studentNombre, onConfirm, onCancel }) {
+  const deleteModalStyles = StyleSheet.create({
+    overlay: {
+      flex: 1,
+      backgroundColor: 'rgba(0,0,0,0.6)',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: 20,
+    },
+    container: {
+      backgroundColor: COLORS.white,
+      borderRadius: 20,
+      padding: 24,
+      width: '100%',
+      maxWidth: 320,
+      alignItems: 'center',
+      shadowColor: "#000",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 10,
+    },
+    iconContainer: {
+      width: 60,
+      height: 60,
+      borderRadius: 30,
+      justifyContent: 'center',
+      alignItems: 'center',
+      marginBottom: 16,
+    },
+    title: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: COLORS.text,
+      marginBottom: 12,
+    },
+    message: {
+      fontSize: 15,
+      color: COLORS.textMuted,
+      textAlign: 'center',
+      lineHeight: 22,
+      marginBottom: 8,
+    },
+    studentNombre: {
+      fontWeight: '700',
+      color: COLORS.text,
+    },
+    warning: {
+      fontSize: 13,
+      color: COLORS.error,
+      textAlign: 'center',
+      marginBottom: 24,
+    },
+    buttonsRow: {
+      flexDirection: 'row',
+      width: '100%',
+      gap: 12,
+    },
+    btnCancel: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: COLORS.inputBg,
+      alignItems: 'center',
+    },
+    btnCancelText: {
+      color: COLORS.textMuted,
+      fontWeight: '600',
+      fontSize: 15,
+    },
+    btnConfirm: {
+      flex: 1,
+      paddingVertical: 14,
+      borderRadius: 12,
+      backgroundColor: COLORS.error,
+      alignItems: 'center',
+    },
+    btnConfirmText: {
+      color: COLORS.white,
+      fontWeight: '700',
+      fontSize: 15,
+    },
+  });
+
+  return (
+    <Modal
+      transparent={true}
+      animationType="fade"
+      visible={visible}
+      onRequestClose={onCancel}
+    >
+      <View style={deleteModalStyles.overlay}>
+        <View style={deleteModalStyles.container}>
+          <View style={deleteModalStyles.iconContainer}>
+            <Image source={trash} style={{ height: 28, width: 28 }} />
           </View>
-        </Modal>
-      );
-    }
+          
+          <Text style={deleteModalStyles.title}>Eliminar estudiante</Text>
+          <Text style={deleteModalStyles.message}>
+            ¿Seguro que deseas eliminar{"\n"}
+            <Text style={deleteModalStyles.studentNombre}>"{studentNombre}"</Text>?
+          </Text>
+          <Text style={deleteModalStyles.warning}>
+            Esta acción no se puede deshacer.
+          </Text>
 
-    const deleteModalStyles = StyleSheet.create({
-      overlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.6)',
-        justifyContent: 'center',
-        alignItems: 'center',
-        padding: 20,
-      },
-      container: {
-        backgroundColor: COLORS.white,
-        borderRadius: 20,
-        padding: 24,
-        width: '100%',
-        maxWidth: 320,
-        alignItems: 'center',
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 4 },
-        shadowOpacity: 0.3,
-        shadowRadius: 8,
-        elevation: 10,
-      },
-      iconContainer: {
-        width: 60,
-        height: 60,
-        borderRadius: 30,
-        justifyContent: 'center',
-        alignItems: 'center',
-        marginBottom: 16,
-      },
-      title: {
-        fontSize: 20,
-        fontWeight: '700',
-        color: COLORS.text,
-        marginBottom: 12,
-      },
-      message: {
-        fontSize: 15,
-        color: COLORS.textMuted,
-        textAlign: 'center',
-        lineHeight: 22,
-        marginBottom: 8,
-      },
-      studentNombre: {
-        fontWeight: '700',
-        color: COLORS.text,
-      },
-      warning: {
-        fontSize: 13,
-        color: COLORS.error,
-        textAlign: 'center',
-        marginBottom: 24,
-      },
-      buttonsRow: {
-        flexDirection: 'row',
-        width: '100%',
-        gap: 12,
-      },
-      btnCancel: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: COLORS.inputBg,
-        alignItems: 'center',
-      },
-      btnCancelText: {
-        color: COLORS.textMuted,
-        fontWeight: '600',
-        fontSize: 15,
-      },
-      btnConfirm: {
-        flex: 1,
-        paddingVertical: 14,
-        borderRadius: 12,
-        backgroundColor: COLORS.error,
-        alignItems: 'center',
-      },
-      btnConfirmText: {
-        color: COLORS.white,
-        fontWeight: '700',
-        fontSize: 15,
-      },
-    });
+          <View style={deleteModalStyles.buttonsRow}>
+            <TouchableOpacity style={deleteModalStyles.btnCancel} onPress={onCancel}>
+              <Text style={deleteModalStyles.btnCancelText}>Cancelar</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={deleteModalStyles.btnConfirm} onPress={onConfirm}>
+              <Text style={deleteModalStyles.btnConfirmText}>Eliminar</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </View>
+    </Modal>
+  );
+}
 
+const ROUTES = {
+  classes:  "ProfesorView",
+  students: null,           // vista actual
+  qrscan:   "QRView",
+  manual:   "ManualView",
+  export:   "ExportView",
+};
 
-    const ROUTES = {
-    classes:  "ProfesorView",
-    students: null,           // vista actual
-    qrscan:   "QRView",
-    manual:   "ManualView",
-    export:   "ExportView",
-    };
-
-    // ─── Componente principal ─────────────────────────────────────────────────────
-    export default function EstudianteView({ setPantalla, onLogout }) {
+// ─── Componente principal ─────────────────────────────────────────────────────
+export default function EstudianteView({ usuario, setPantalla, onLogout }) {
+      const appState = useRef(AppState.currentState);
       const [menuVisible, setMenuVisible] = useState(false);
 
     // ── Clases disponibles ────────────────────────────────────────────────────
-    const [clases, setClases] = useState(() => obtenerClases());
+    const [clases, setClases] = useState([]);
 
     // ── Clase seleccionada en el dropdown ────────────────────────────────────
-    const [claseSeleccionada, setClaseSeleccionada] = useState(
-        () => obtenerClases()[0] || null
-    );
+    const [claseSeleccionada, setClaseSeleccionada] = useState(null);
     const [dropdownVisible, setDropdownVisible] = useState(false);
 
     // ── Formulario Nuevo Vínculo ──────────────────────────────────────────────
@@ -217,19 +206,68 @@ function getIniciales(nombre = "") {
     const [celular,  setCelular]  = useState("");
 
     // ── Lista de estudiantes ──────────────────────────────────────────────────
-    const [estudiantes, setEstudiantes] = useState(() =>
-        claseSeleccionada
-        ? obtenerEstudiantesPorClase(claseSeleccionada.id)
-        : []
-    );
+    const [estudiantes, setEstudiantes] = useState([]);
+
+    // ── Estado de carga ───────────────────────────────────────────────────────
+    const [cargando, setCargando] = useState(false);
 
     // ── Refrescar lista ───────────────────────────────────────────────────────
-    const refreshEstudiantes = useCallback((claseId) => {
-        setEstudiantes(claseId
-            ? [...obtenerEstudiantesPorClase(claseId)]
-            : []
-        );
+    const refreshEstudiantes = useCallback(async (claseId) => {
+        if (!claseId) return;
+        try {
+            const resultado = await obtenerEstudiantesAPI(claseId, usuario.token);
+            if (resultado && resultado.ok) {
+                const estudiantes = resultado.estudiantes || [];
+                setEstudiantes([...estudiantes]);
+            } else if (resultado && Array.isArray(resultado)) {
+                // Fallback si API retorna directamente array
+                setEstudiantes([...resultado]);
+            }
+        } catch (error) {
+            console.error('Error al refrescar estudiantes:', error);
+        }
+    }, [usuario.token]);
+
+    // ── Limpiar UI states cuando la app se reanuda (AppState) ────────────────
+    useEffect(() => {
+      const subscription = AppState.addEventListener('change', handleAppStateChange);
+      return () => subscription.remove();
     }, []);
+
+    const handleAppStateChange = (nextAppState) => {
+      if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+        // App ha reanudado - limpiar todos los estados UI
+        setMenuVisible(false);
+        setDropdownVisible(false);
+      }
+      appState.current = nextAppState;
+    };
+
+    // ── useEffect para cargar clases al montar ─────────────────────────────────
+    useEffect(() => {
+        const cargarClases = async () => {
+            try {
+                const resultado = await obtenerClasesAPI(usuario.token);
+                if (resultado && resultado.ok) {
+                    const clases = resultado.clases || [];
+                    setClases([...clases]);
+                    if (clases.length > 0) {
+                        setClaseSeleccionada(clases[0]);
+                        await refreshEstudiantes(clases[0].id);
+                    }
+                } else if (resultado && Array.isArray(resultado)) {
+                    setClases([...resultado]);
+                    if (resultado.length > 0) {
+                        setClaseSeleccionada(resultado[0]);
+                        await refreshEstudiantes(resultado[0].id);
+                    }
+                }
+            } catch (error) {
+                console.error('Error al cargar clases:', error);
+            }
+        };
+        cargarClases();
+    }, [usuario.token, refreshEstudiantes]);
 
     // ── useEffect para actualizar cuando cambia la clase ─────────────────────
     useEffect(() => {
@@ -239,14 +277,14 @@ function getIniciales(nombre = "") {
     }, [claseSeleccionada?.id, refreshEstudiantes]);
 
     // ── Seleccionar clase desde el dropdown ───────────────────────────────────
-    const handleSeleccionarClase = (clase) => {
+    const handleSeleccionarClase = async (clase) => {
         setClaseSeleccionada(clase);
         setDropdownVisible(false);
-        setEstudiantes([...obtenerEstudiantesPorClase(clase.id)]);
+        await refreshEstudiantes(clase.id);
     };
 
     // ── Vincular estudiante ───────────────────────────────────────────────────
-    const handleVincular = () => {
+    const handleVincular = async () => {
         if (!claseSeleccionada) {
         Alert.alert("Error", "Primero selecciona una clase.");
         return;
@@ -256,21 +294,29 @@ function getIniciales(nombre = "") {
         return;
         }
 
-        const resultado = agregarEstudiante({
-        id:      idEst.trim(),
-        nombre:  nombre.trim(),
-        celular: celular.trim(),
-        claseId: claseSeleccionada.id,
-        });
+        setCargando(true);
+        try {
+            const resultado = await agregarEstudianteAPI(
+                nombre.trim(),
+                idEst.trim(),
+                celular.trim(),
+                claseSeleccionada.id,
+                usuario.token
+            );
 
-        if (resultado.ok) {
-        Alert.alert("✅ Éxito", resultado.mensaje);
-        setNombre("");
-        setIdEst("");
-        setCelular("");
-        refreshEstudiantes(claseSeleccionada.id);
-        } else {
-        Alert.alert("Error", resultado.mensaje);
+            if (resultado && resultado.ok) {
+                Alert.alert("✅ Éxito", resultado.mensaje || "Estudiante agregado correctamente");
+                setNombre("");
+                setIdEst("");
+                setCelular("");
+                await refreshEstudiantes(claseSeleccionada.id);
+            } else {
+                Alert.alert("❌ Error", resultado?.mensaje || "No se pudo agregar el estudiante");
+            }
+        } catch (error) {
+            Alert.alert("❌ Error", error.message || "Error al agregar el estudiante");
+        } finally {
+            setCargando(false);
         }
     };
 
@@ -281,18 +327,34 @@ function getIniciales(nombre = "") {
     };
 
     // ✅ EJECUTAR ELIMINACIÓN DESPUÉS DE CONFIRMAR
-    const ejecutarEliminacion = () => {
-        if (!studentAEliminar) return;
+    const ejecutarEliminacion = async () => {
+        if (!studentAEliminar || !claseSeleccionada) return;
 
         const { id, nombre } = studentAEliminar;
-        const resultado = borrarEstudiante(id);
+        
+        setCargando(true);
+        try {
+            const resultado = await eliminarEstudianteAPI(
+                id,
+                claseSeleccionada.id,
+                usuario.token
+            );
 
-        if (resultado.ok) {
-            setEstudiantes(prevEstudiantes => prevEstudiantes.filter(est => est.id !== id));
-            setConfirmModalVisible(false);
-            setStudentAEliminar(null);
-        } else {
-            Alert.alert("Error", resultado.mensaje || "No se pudo eliminar el estudiante");
+            if (resultado && resultado.ok) {
+                setConfirmModalVisible(false);
+                setStudentAEliminar(null);
+                await refreshEstudiantes(claseSeleccionada.id);
+                
+                if (Platform.OS !== 'web') {
+                    Alert.alert("✅ Eliminado", `${nombre} fue eliminado correctamente.`);
+                }
+            } else {
+                Alert.alert("❌ Error", resultado?.mensaje || "No se pudo eliminar el estudiante");
+            }
+        } catch (error) {
+            Alert.alert("❌ Error", error.message || "Error al eliminar el estudiante");
+        } finally {
+            setCargando(false);
         }
     };
 
@@ -308,6 +370,19 @@ function getIniciales(nombre = "") {
 
     // ── Navegación inferior ───────────────────────────────────────────────────
     const [activeTab, setActiveTab] = useState("students");
+
+    // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+    useEffect(() => {
+        return () => {
+            setMenuVisible(false);
+            setDropdownVisible(false);
+            setConfirmModalVisible(false);
+            setStudentAEliminar(null);
+            setNombre("");
+            setIdEst("");
+            setCelular("");
+        };
+    }, []);
 
     const handleTabPress = (tab) => {
         setActiveTab(tab);
@@ -335,7 +410,7 @@ function getIniciales(nombre = "") {
             <View style={styles.estInfo}>
             <Text style={styles.estNombre}>{item.nombre}</Text>
             <Text style={styles.estDetalle}>
-                ID: {item.id} • {item.celular}
+                ID: {item.numero_identificacion || item.id} • {item.celular}
             </Text>
             </View>
 
@@ -359,36 +434,11 @@ function getIniciales(nombre = "") {
         <SafeAreaView style={styles.safeArea}>
         <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-        {/* ── HEADER ────────────────────────────────────────────────────── */}
-        <View style={styles.header}>
-            <TouchableOpacity 
-              style={styles.menuBtn} 
-              accessibilityLabel="Menú"
-              onPress={() => setMenuVisible(!menuVisible)}
-            >
-            <Text style={styles.menuIcon}>☰</Text>
-            </TouchableOpacity>
-            <Text style={styles.headerTitle}>SmartAttendance</Text>
-            <View style={styles.avatarWrap}>
-            <Text style={styles.avatarWrapText}>👤</Text>
-            </View>
-        </View>
-
-        {/* Menú desplegable */}
-        {menuVisible && (
-          <View style={styles.menuDropdown}>
-            <TouchableOpacity
-              style={styles.menuItem}
-              onPress={() => {
-                setMenuVisible(false);
-                if (onLogout) onLogout();
-              }}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.menuItemText}>Cerrar sesión</Text>
-            </TouchableOpacity>
-          </View>
-        )}
+        <Header 
+          menuVisible={menuVisible} 
+          setMenuVisible={setMenuVisible} 
+          onLogout={onLogout}
+        />
 
         {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
         <ScrollView
@@ -398,7 +448,6 @@ function getIniciales(nombre = "") {
             keyboardShouldPersistTaps="handled"
         >
             {/* Títulos */}
-            <Text style={styles.labelAdmin}>ADMINISTRACIÓN</Text>
             <Text style={styles.panelTitle}>Gestión de{"\n"}Estudiantes</Text>
 
             {/* ── SELECTOR DE CLASE ──────────────────────────────────────── */}
@@ -573,68 +622,7 @@ function getIniciales(nombre = "") {
     },
 
     // Header
-    header: {
-        flexDirection: "row",
-        alignItems: "center",
-        justifyContent: "space-between",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
-        backgroundColor: COLORS.white,
-        borderBottomWidth: 1,
-        borderBottomColor: COLORS.navBorder,
-    },
-    menuBtn: { padding: 4 },
-    menuIcon: { fontSize: 20, color: COLORS.primary },
-    headerTitle: {
-        fontSize: 18,
-        fontWeight: "700",
-        color: COLORS.primary,
-        letterSpacing: 0.3,
-    },
-    avatarWrap: {
-        width: 38, height: 38, borderRadius: 19,
-        backgroundColor: COLORS.primary,
-        alignItems: "center", justifyContent: "center",
-    },
-    avatarWrapText: { fontSize: 20 },
-
-    // Menú desplegable
-    menuDropdown: {
-      position: "absolute",
-      top: 48,
-      left: 0,
-      right: 0,
-      backgroundColor: COLORS.white,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.navBorder,
-      zIndex: 100,
-    },
-    menuItem: {
-      flexDirection: "row",
-      alignItems: "center",
-      paddingHorizontal: 20,
-      paddingVertical: 14,
-      borderBottomWidth: 1,
-      borderBottomColor: COLORS.border,
-    },
-    menuItemIcon: {
-      fontSize: 18,
-      marginRight: 12,
-    },
-    menuItemText: {
-      fontSize: 15,
-      fontWeight: "600",
-      color: COLORS.text,
-    },
-
     // Títulos
-    labelAdmin: {
-        fontSize: 10,
-        fontWeight: "700",
-        color: COLORS.accent,
-        letterSpacing: 1.5,
-        marginBottom: 4,
-    },
     panelTitle: {
         fontSize: 28,
         fontWeight: "800",

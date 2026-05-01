@@ -1,0 +1,86 @@
+services:
+  # Base de datos PostgreSQL
+  postgres:
+    image: postgres:16-alpine
+    container_name: smartattendance-db
+    environment:
+      POSTGRES_USER: ${DB_USER:-smartattendance}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-smartattendance123}
+      POSTGRES_DB: ${DB_NAME:-smartattendance}
+      TZ: America/Bogota
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql
+      - /etc/localtime:/etc/localtime:ro
+    ports:
+      - "5434:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-smartattendance}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - smartattendance-net
+    restart: unless-stopped
+
+  # Backend Node.js
+  backend:
+    build:
+      context: ./SmartAttendance-backend
+      dockerfile: Dockerfile
+    container_name: smartattendance-backend
+    environment:
+      NODE_ENV: production
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_USER: ${DB_USER:-smartattendance}
+      DB_PASSWORD: ${DB_PASSWORD:-smartattendance123}
+      DB_NAME: ${DB_NAME:-smartattendance}
+      JWT_SECRET: ${JWT_SECRET:-tu_secreto_super_seguro_cambiar_en_produccion}
+      JWT_EXPIRES_IN: ${JWT_EXPIRES_IN:-7d}
+      PORT: 5000
+      TZ: America/Bogota
+    ports:
+      - "5000:5000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./SmartAttendance-backend:/app
+      - /app/node_modules
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - smartattendance-net
+    restart: unless-stopped
+
+  # Frontend Expo
+  app:
+    build:
+      context: ./SmartAttendance-app
+      dockerfile: Dockerfile
+    container_name: smartattendance-app
+    environment:
+      EXPO_PUBLIC_API_URL: http://backend:5000
+      NODE_ENV: development
+      TZ: America/Bogota
+    ports:
+      - "8081:8081"
+      - "19000:19000"
+      - "19001:19001"
+    depends_on:
+      - backend
+    volumes:
+      - ./SmartAttendance-app:/app
+      - /app/node_modules
+      - /etc/localtime:/etc/localtime:ro
+    networks:
+      - smartattendance-net
+    restart: unless-stopped
+
+volumes:
+  postgres_data:
+
+networks:
+  smartattendance-net:
+    driver: bridge
+  

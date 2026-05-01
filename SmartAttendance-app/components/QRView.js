@@ -17,16 +17,19 @@ import {
   SafeAreaView,
   Modal,
   ActivityIndicator,
-  Image
+  Image,
+  AppState
 } from "react-native";
 
 import qr from "../assets/icons/qr.png";
 
 // Importamos las funciones para obtener clases y generar QR
 import {
-  obtenerClases,
-  generarQRParaClase,
-} from "../controllers/asistenciaController";
+  obtenerClasesAPI,
+  generarQRAPI,
+} from "../services/api";
+
+import { Header, COLORS } from "../theme";
 
 // Intentamos importar la librería QR. Si no está instalada, el componente sigue funcionando
 let QRCode = null;
@@ -35,24 +38,6 @@ try {
 } catch {
   QRCode = null;
 }
-
-// Paleta de colores
-const COLORS = {
-  primary:    "#1A3A6B",
-  accent:     "#3B82F6",
-  background: "#F0F4FA",
-  card:       "#FFFFFF",
-  inputBg:    "#F5F7FC",
-  iconBg:     "#DDE8F8",
-  text:       "#1A2B4A",
-  textMuted:  "#6B7A99",
-  border:     "#D8E2F0",
-  white:      "#FFFFFF",
-  navBorder:  "#E2E8F0",
-  green:      "#16A34A",
-  red:        "#DC2626",
-  orange:     "#F97316",
-};
 
 // Los QR expiran después de este tiempo (en segundos)
 const QR_DURACION_SEG = 60;
@@ -65,14 +50,13 @@ const ROUTES = {
   export:   "ExportView",
 };
 
-export default function QRView({ setPantalla, onLogout }) {
+export default function QRView({ usuario, setPantalla, onLogout }) {
+  const appState = useRef(AppState.currentState);
   const [menuVisible, setMenuVisible] = useState(false);
 
   // Clases disponibles
-  const [clases] = useState(() => obtenerClases());
-  const [claseSeleccionada, setClaseSeleccionada] = useState(
-    () => obtenerClases()[0] || null
-  );
+  const [clases, setClases] = useState([]);
+  const [claseSeleccionada, setClaseSeleccionada] = useState(null);
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
   // Estado del QR generado
@@ -94,8 +78,57 @@ export default function QRView({ setPantalla, onLogout }) {
     };
   }, []);
 
+  // ── Limpiar UI states cuando la app se reanuda (AppState) ────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  const handleAppStateChange = (nextAppState) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App ha reanudado - limpiar todos los estados UI
+      setMenuVisible(false);
+      setDropdownVisible(false);
+    }
+    appState.current = nextAppState;
+  };
+
+  // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+  useEffect(() => {
+    return () => {
+      setMenuVisible(false);
+      setDropdownVisible(false);
+      setQrData(null);
+      setExpirado(false);
+    };
+  }, []);
+
+  // ── Cargar clases al montar ───────────────────────────────────────────────
+  useEffect(() => {
+    const cargarClases = async () => {
+      try {
+        const resultado = await obtenerClasesAPI(usuario.token);
+        if (resultado && resultado.ok) {
+          const clases = resultado.clases || [];
+          setClases([...clases]);
+          if (clases.length > 0) {
+            setClaseSeleccionada(clases[0]);
+          }
+        } else if (resultado && Array.isArray(resultado)) {
+          setClases([...resultado]);
+          if (resultado.length > 0) {
+            setClaseSeleccionada(resultado[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar clases:', error);
+      }
+    };
+    cargarClases();
+  }, [usuario.token]);
+
   // ── Generar QR ────────────────────────────────────────────────────────────
-  const handleGenerarQR = useCallback(() => {
+  const handleGenerarQR = useCallback(async () => {
     if (!claseSeleccionada) {
       Alert.alert("Error", "Selecciona una clase primero.");
       return;
@@ -104,16 +137,16 @@ export default function QRView({ setPantalla, onLogout }) {
     setGenerando(true);
 
     try {
-      const resultado = generarQRParaClase(claseSeleccionada.id, QR_DURACION_SEG);
+      const resultado = await generarQRAPI(claseSeleccionada.id, QR_DURACION_SEG, usuario.token);
 
-      if (!resultado.ok) {
-        Alert.alert("Error", resultado.mensaje);
+      if (!resultado || !resultado.ok) {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo generar el QR");
         setGenerando(false);
         return;
       }
 
       // Guardar el QR en estado
-      setQrData(resultado.qr);
+      setQrData(resultado.qr || resultado.data);
       setExpirado(false);
       setSegundos(QR_DURACION_SEG);
       setGenerando(false);
@@ -135,10 +168,10 @@ export default function QRView({ setPantalla, onLogout }) {
 
     } catch (error) {
       console.error("Error al generar QR:", error);
-      Alert.alert("Error", "Hubo un error al generar el QR: " + error.message);
+      Alert.alert("❌ Error", "Error al generar el QR: " + error.message);
       setGenerando(false);
     }
-  }, [claseSeleccionada]);
+  }, [claseSeleccionada, usuario.token]);
 
   // ── Color del timer según tiempo restante ─────────────────────────────────
   const timerColor =
@@ -171,36 +204,11 @@ export default function QRView({ setPantalla, onLogout }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      {/* ── HEADER ────────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.menuBtn} 
-          accessibilityLabel="Menú"
-          onPress={() => setMenuVisible(!menuVisible)}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>SmartAttendance</Text>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarWrapText}>👤</Text>
-        </View>
-      </View>
-
-      {/* Menú desplegable */}
-      {menuVisible && (
-        <View style={styles.menuDropdown}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              if (onLogout) onLogout();
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.menuItemText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+      />
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
       <ScrollView
@@ -384,58 +392,6 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-  },
-  menuBtn:    { padding: 4 },
-  menuIcon:   { fontSize: 20, color: COLORS.primary },
-  headerTitle: {
-    fontSize: 18, fontWeight: "700",
-    color: COLORS.primary, letterSpacing: 0.3,
-  },
-  avatarWrap: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarWrapText: { fontSize: 20 },
-
-  // Menú desplegable
-  menuDropdown: {
-    position: "absolute",
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-    zIndex: 100,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
-  },
-
   // Card principal
   card: {
     backgroundColor: COLORS.card,

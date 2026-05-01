@@ -27,23 +27,13 @@ import FormRegistroView from "./components/FormRegistroView";
 // Al iniciar la app, cargamos todos los datos que fueron guardados en almacenamiento local
 import { cargarDatosDelStorage } from "./models/clases";
 
+import { COLORS, Header } from "./theme";
+
 import book from "./assets/icons/book.png";
 import user from "./assets/icons/user.png";
 import qrIcon from "./assets/icons/qr.png";
 import planning from "./assets/icons/planning.png";
 import exporti from "./assets/icons/export.png";
-
-// Paleta de colores usada en toda la app para mantener consistencia visual
-const COLORS = {
-  primary: "#1A3A6B",
-  primaryLight: "#2454A0",
-  accent: "#3B82F6",
-  background: "#F0F4FA",
-  card: "#FFFFFF",
-  text: "#1A2B4A",
-  textMuted: "#6B7A99",
-  navBorder: "#E2E8F0",
-};
 
 // Configuración de las tabs de navegación que solo ven los profesores
 const NAV_TABS = [
@@ -154,17 +144,17 @@ export default function App() {
   const renderPantalla = () => {
     switch (pantalla) {
       case "clases":
-        return <ProfesorView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <ProfesorView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "estudiantes":
-        return <EstudianteView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <EstudianteView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "qr":
-        return <QRView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <QRView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "manual":
-        return <ManualView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <ManualView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "exportar":
-        return <ExportView setPantalla={setPantalla} onLogout={handleLogout} />;
+        return <ExportView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       default:
-        return <ProfesorView setPantalla={setPantalla} />;
+        return <ProfesorView usuario={usuario} setPantalla={setPantalla} />;
     }
   };
 
@@ -176,7 +166,7 @@ export default function App() {
       {usuario && usuario.rol === "estudiante" ? (
         <EstudianteMainView usuario={usuario} onLogout={handleLogout} />
       ) : (
-        <>
+        <View style={{ flex: 1, flexDirection: "column" }}>
           {/* Mostramos la pantalla actual del profesor */}
           <View style={styles.contentContainer}>{renderPantalla()}</View>
 
@@ -219,7 +209,7 @@ export default function App() {
               </TouchableOpacity>
             ))}
           </View>
-        </>
+        </View>
       )}
     </SafeAreaView>
   );
@@ -229,15 +219,13 @@ const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
     backgroundColor: COLORS.card,
+    flexDirection: "column",
   },
   contentContainer: {
     flex: 1,
+    overflow: "hidden",
   },
   navBar: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
     flexDirection: "row",
     backgroundColor: COLORS.card,
     borderTopWidth: 1,
@@ -245,6 +233,7 @@ const styles = StyleSheet.create({
     paddingTop: 8,
     paddingBottom: Platform.OS === "ios" ? 20 : 10,
     paddingHorizontal: 4,
+    height: Platform.OS === "ios" ? 70 : 60,
   },
   navItem: {
     flex: 1,

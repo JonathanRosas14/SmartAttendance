@@ -10,18 +10,21 @@ import * as MediaLibrary from 'expo-media-library';
 // Función auxiliar para generar el contenido CSV formateado
 // Crea un reporte con encabezados y las filas de datos de estudiantes
 function generarCSV(estudiantesClase, asistenciasClase, nombreClase) {
-  const encabezados = ['Nombre', 'ID', 'Teléfono', 'Asistió', 'No Asistió'];
+  const encabezados = ['Nombre', 'ID', 'Teléfono', 'Número de Serie del Dispositivo', 'Asistió', 'No Asistió'];
   
   // Para cada estudiante, verificamos si asistió (hay un registro de asistencia)
   const filas = estudiantesClase.map((estudiante) => {
-    const asistio = asistenciasClase.some(
+    const asistencias = asistenciasClase.filter(
       (a) => a.estudianteId === estudiante.id
     );
+    const asistio = asistencias.length > 0;
+    const numeroSerie = asistencias.length > 0 ? asistencias[0].mac_address || 'N/A' : 'N/A';
     
     return [
       estudiante.nombre,
-      estudiante.id,
+      estudiante.numero_identificacion || estudiante.id,
       estudiante.celular,
+      numeroSerie,
       asistio ? 'Sí' : '',
       asistio ? '' : 'Sí',
     ];
@@ -110,11 +113,16 @@ export async function exportarAsistenciaPorSesion(
 ) {
   try {
     // Los encabezados incluyen el nombre del estudiante y una columna para cada sesión (fecha)
-    const encabezados = ['Nombre', 'ID', 'Teléfono', ...sesiones.map((s) => s.fecha)];
+    const encabezados = ['Nombre', 'ID', 'Teléfono', 'Número de Serie del Dispositivo', ...sesiones.map((s) => s.fecha)];
 
     // Crear filas con los datos de cada estudiante
     const filas = estudiantes.map((est) => {
-      const fila = [est.nombre, est.id, est.celular];
+      const fila = [est.nombre, est.numero_identificacion || est.id, est.celular];
+      
+      // Obtener Número de Serie de la primera asistencia (si existe)
+      const primeraAsistencia = asistencias.find((a) => a.estudianteId === est.id);
+      const numeroSerie = primeraAsistencia?.mac_address || 'N/A';
+      fila.push(numeroSerie);
       
       // Para cada sesión, verificar si el estudiante asistió
       sesiones.forEach((sesion) => {

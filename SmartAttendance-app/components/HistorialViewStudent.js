@@ -19,23 +19,10 @@ import {
 
 import planning from "../assets/icons/planning.png";
 
-// Importamos funciones para obtener el historial del estudiante
-import {
-  obtenerHistorialEstudiante,
-  obtenerEstudiantePorCorreo,
-} from "../controllers/asistenciaController";
+// Importamos la función API para obtener el historial del servidor
+import { obtenerHistorialEstudianteAPI } from "../services/api";
 
-const COLORS = {
-  primary:    "#1A3A6B",
-  accent:     "#3B82F6",
-  background: "#F0F4FA",
-  card:       "#FFFFFF",
-  text:       "#1A2B4A",
-  textMuted:  "#6B7A99",
-  border:     "#D8E2F0",
-  white:      "#FFFFFF",
-  navBorder:  "#E2E8F0",
-};
+import { Header, COLORS } from "../theme";
 
 // Función auxiliar para convertir fechas de formato YYYY-MM-DD a un formato más legible
 // Por ejemplo: "2025-04-14" se convierte a "14 ABR, 2025"
@@ -51,53 +38,51 @@ function formatearFecha(fechaStr = "") {
 }
 
 export default function HistorialView({ usuario, menuVisible, setMenuVisible, onLogout }) {
-  // Guardamos los datos del estudiante y su historial
-  const [estudiante, setEstudiante] = useState(null);
+  // Guardamos el historial de asistencias
   const [historial, setHistorial]   = useState([]);
+  const [cargando, setCargando] = useState(true);
+  const [error, setError] = useState(null);
 
-  // Cargar datos del estudiante y su historial cuando se monta el componente
+  // Cargar historial del estudiante desde el servidor cuando se monta el componente
   useEffect(() => {
-    const est = obtenerEstudiantePorCorreo(usuario.correo);
-    setEstudiante(est);
-    if (est) {
-      // Obtener todas las asistencias registradas del estudiante
-      setHistorial(obtenerHistorialEstudiante(est.id));
+    const cargarHistorial = async () => {
+      try {
+        setCargando(true);
+        setError(null);
+        // Obtener todas las asistencias registradas del estudiante desde el backend
+        const resultado = await obtenerHistorialEstudianteAPI(usuario.token);
+        
+        if (resultado.ok) {
+          // El backend retorna los datos en la propiedad 'historial'
+          const datos = resultado.historial || [];
+          setHistorial(Array.isArray(datos) ? datos : []);
+        } else {
+          setError(resultado.mensaje || 'Error al cargar el historial');
+          setHistorial([]);
+        }
+      } catch (err) {
+        console.error('Error cargando historial:', err);
+        setError('Error al conectar con el servidor');
+        setHistorial([]);
+      } finally {
+        setCargando(false);
+      }
+    };
+
+    if (usuario?.token) {
+      cargarHistorial();
     }
-  }, [usuario]);
+  }, [usuario?.token]);
 
   return (
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      {/* Header con título y botón de menú */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.menuBtn}
-          onPress={() => setMenuVisible(!menuVisible)}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>SmartAttendance</Text>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarIcon}>👤</Text>
-        </View>
-      </View>
-
-      {/* Menú desplegable */}
-      {menuVisible && (
-        <View style={styles.menuDropdown}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              if (onLogout) onLogout();
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.menuItemText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+      />
 
       {/* ── CONTENIDO ───────────────────────────────────────────── */}
       <ScrollView
@@ -110,7 +95,17 @@ export default function HistorialView({ usuario, menuVisible, setMenuVisible, on
           Revisa el registro detallado de tu asistencia semestral.
         </Text>
 
-        {historial.length === 0 ? (
+        {cargando ? (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyText}>Cargando asistencias...</Text>
+          </View>
+        ) : error ? (
+          <View style={styles.emptyState}>
+            <Text style={{ ...styles.emptyText, color: COLORS.red || '#DC2626' }}>
+              {error}
+            </Text>
+          </View>
+        ) : historial.length === 0 ? (
           <View style={styles.emptyState}>
             <Image source={planning} style={{ width: 100, height: 100, tintColor: COLORS.textMuted }} />
             <Text style={styles.emptyText}>
@@ -120,15 +115,15 @@ export default function HistorialView({ usuario, menuVisible, setMenuVisible, on
         ) : (
           <FlatList
             data={historial}
-            keyExtractor={(item, index) => `${item.claseId}-${index}`}
+            keyExtractor={(item, index) => `${item.id || item.claseId}-${item.fecha}-${index}`}
             renderItem={({ item }) => (
               <View style={styles.card}>
                 <Text style={styles.cardFecha}>
                   {formatearFecha(item.fecha)}
                 </Text>
-                <Text style={styles.cardClase}>{item.claseNombre}</Text>
+                <Text style={styles.cardClase}>{item.claseNombre || 'Clase sin nombre'}</Text>
                 <Text style={styles.cardDetalle}>
-                  {item.tipo === "manual" ? "Registro manual" : "Aula"} •{" "}
+                  {item.tipo === "manual" ? "Registro manual" : "Escaneo QR"} •{" "}
                   {item.hora}
                 </Text>
               </View>
@@ -151,55 +146,9 @@ const styles = StyleSheet.create({
     paddingBottom: 24,
   },
 
-  header: {
-    flexDirection: "row", alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16, paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1, borderBottomColor: COLORS.navBorder,
-  },
-  menuBtn:     { padding: 4 },
-  menuIcon:    { fontSize: 20, color: COLORS.primary },
-  headerTitle: {
-    fontSize: 17, fontWeight: "700",
-    color: COLORS.primary, letterSpacing: 0.3,
-  },
-  avatarWrap: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarIcon: { fontSize: 20 },
+  // Menú estilos removidos - ahora centralizado en App.js
 
-  // Menú desplegable
-  menuDropdown: {
-    position: "absolute",
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-    zIndex: 100,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
-  },
-
+  // Contenido
   titulo: {
     fontSize: 28, fontWeight: "800",
     color: COLORS.primary, marginBottom: 6,

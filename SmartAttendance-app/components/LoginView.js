@@ -25,8 +25,8 @@ import fingerprint from "../assets/icons/fingerprint.png";
 import verified from "../assets/icons/verified.png";
 import auction from "../assets/icons/auction.png";
 
-// Importamos la función login del controlador para validar credenciales
-import { login } from "../controllers/asistenciaController";
+// Importamos la función login del API para validar credenciales contra la BD
+import { loginAPI } from "../services/api";
 
 // Paleta de colores consistente en toda la app
 const COLORS = {
@@ -51,8 +51,8 @@ export default function LoginView({ onLoginExitoso, onIrAlRegistro, rolInicial }
   const [mostrarPass, setMostrarPass] = useState(false);
   const [cargando, setCargando]     = useState(false);
 
-  // Cuando el usuario presiona login, validamos sus credenciales
-  const handleLogin = () => {
+  // Cuando el usuario presiona login, validamos sus credenciales contra la BD
+  const handleLogin = async () => {
     if (!correo.trim() || !contrasena.trim()) {
       Alert.alert("Error", "Ingresa tu correo y contraseña.");
       return;
@@ -60,20 +60,27 @@ export default function LoginView({ onLoginExitoso, onIrAlRegistro, rolInicial }
 
     setCargando(true);
 
-    // Simulamos un pequeño delay para darle sensación de que está procesando
-    setTimeout(() => {
-      // Llamamos a la función login del controlador para verificar credenciales
-      const resultado = login({ correo: correo.trim(), contrasena, rol });
-      setCargando(false);
+    try {
+      // Llamamos a la API para verificar credenciales en la BD
+      const resultado = await loginAPI(correo.trim(), contrasena, rol);
 
       if (resultado.ok) {
-        // Si el login fue exitoso, pasamos el usuario al App.js para que lo redirija
-        onLoginExitoso(resultado.usuario);
+        // Si el login fue exitoso, pasamos el usuario y token al App.js
+        // Guardamos el token para futuras peticiones autenticadas
+        onLoginExitoso({
+          ...resultado.usuario,
+          token: resultado.token,
+        });
       } else {
         // Si las credenciales son incorrectas, mostramos un error
         Alert.alert("Acceso denegado", resultado.mensaje);
       }
-    }, 500);
+    } catch (error) {
+      console.error("Error en login:", error);
+      Alert.alert("Error", "No se pudo conectar con el servidor: " + error.message);
+    } finally {
+      setCargando(false);
+    }
   };
 
   return (

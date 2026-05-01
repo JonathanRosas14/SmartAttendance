@@ -4,7 +4,7 @@
 // Dependiendo de la selección, la tarjeta del estudiante se pone verde (asistió) o roja (faltó)
 // Al final, el profesor guarda todos los registros en lote
 
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -18,38 +18,20 @@ import {
   StatusBar,
   SafeAreaView,
   Modal,
-  Image
+  Image,
+  AppState
 } from "react-native";
 
 import planning from "../assets/icons/planning.png";
 
 // Importamos las funciones para obtener clases, estudiantes, y guardar asistencia manual
 import {
-  obtenerClases,
-  obtenerEstudiantesPorClase,
-  guardarAsistenciaManual,
-} from "../controllers/asistenciaController";
+  obtenerClasesAPI,
+  obtenerEstudiantesAPI,
+  registrarAsistenciaManualAPI,
+} from "../services/api";
 
-// Paleta de colores
-const COLORS = {
-  primary:     "#1A3A6B",
-  accent:      "#3B82F6",
-  background:  "#F0F4FA",
-  card:        "#FFFFFF",
-  inputBg:     "#F5F7FC",
-  iconBg:      "#DDE8F8",
-  text:        "#1A2B4A",
-  textMuted:   "#6B7A99",
-  border:      "#D8E2F0",
-  white:       "#FFFFFF",
-  navBorder:   "#E2E8F0",
-  green:       "#16A34A",
-  greenLight:  "#DCFCE7",
-  greenBorder: "#22C55E",
-  red:         "#DC2626",
-  redLight:    "#FEE2E2",
-  redBorder:   "#EF4444",
-};
+import { Header, COLORS } from "../theme";
 
 // Colores para avatares de iniciales (para que se vea mejor visualmente)
 const AVATAR_COLORS = [
@@ -76,43 +58,123 @@ function getAvatarColor(id = "") {
 
 
 // ─── Componente principal ─────────────────────────────────────────────────────
-export default function ManualView({ setPantalla, onLogout }) {
+export default function ManualView({ usuario, setPantalla, onLogout }) {
+  const appState = useRef(AppState.currentState);
   const [menuVisible, setMenuVisible] = useState(false);
 
   // ── Clases ────────────────────────────────────────────────────────────────
-  const [clases] = useState(() => obtenerClases());
-  const [claseSeleccionada, setClaseSeleccionada] = useState(
-    () => obtenerClases()[0] || null
-  );
+  const [clases, setClases] = useState([]);
+  const [claseSeleccionada, setClaseSeleccionada] = useState(null);
   const [dropdownVisible, setDropdownVisible] = useState(false);
 
   // ── Estudiantes y sus estados de asistencia ───────────────────────────────
   // estados: { [estudianteId]: "asistio" | "falto" | null }
-  const [estudiantes, setEstudiantes] = useState(() =>
-    claseSeleccionada
-      ? obtenerEstudiantesPorClase(claseSeleccionada.id)
-      : []
-  );
+  const [estudiantes, setEstudiantes] = useState([]);
   const [asistenciaMap, setAsistenciaMap] = useState({});
 
   // ── Búsqueda ──────────────────────────────────────────────────────────────
   const [busqueda, setBusqueda] = useState("");
 
+  // ── Estado de carga ───────────────────────────────────────────────────────
+  const [cargando, setCargando] = useState(false);
+
+  // ── Limpiar UI states cuando la app se reanuda (AppState) ────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  const handleAppStateChange = (nextAppState) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App ha reanudado - limpiar todos los estados UI
+      setMenuVisible(false);
+      setDropdownVisible(false);
+      setBusqueda("");
+    }
+    appState.current = nextAppState;
+  };
+
+  // ── Cargar clases al montar el componente ──────────────────────────────────
+  useEffect(() => {
+    const cargarClases = async () => {
+      try {
+        const resultado = await obtenerClasesAPI(usuario.token);
+        if (resultado && resultado.ok) {
+          const clases = resultado.clases || [];
+          setClases([...clases]);
+          if (clases.length > 0) {
+            setClaseSeleccionada(clases[0]);
+            const estudiantesResult = await obtenerEstudiantesAPI(clases[0].id, usuario.token);
+            if (estudiantesResult && (estudiantesResult.ok ? Array.isArray(estudiantesResult.estudiantes) : Array.isArray(estudiantesResult))) {
+              const estudiantes = estudiantesResult.ok ? estudiantesResult.estudiantes : estudiantesResult;
+              setEstudiantes([...estudiantes]);
+            }
+          }
+        } else if (resultado && Array.isArray(resultado)) {
+          setClases([...resultado]);
+          if (resultado.length > 0) {
+            setClaseSeleccionada(resultado[0]);
+            const estudiantesResult = await obtenerEstudiantesAPI(resultado[0].id, usuario.token);
+            if (estudiantesResult && Array.isArray(estudiantesResult)) {
+              setEstudiantes([...estudiantesResult]);
+            }
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar clases:', error);
+      }
+    };
+    cargarClases();
+  }, [usuario.token]);
+
   // ── Cargar estudiantes cuando se selecciona una clase ────────────────────
   useEffect(() => {
-    if (claseSeleccionada) {
-      setEstudiantes([...obtenerEstudiantesPorClase(claseSeleccionada.id)]);
+    if (claseSeleccionada?.id) {
+      const cargarEstudiantes = async () => {
+        try {
+          const resultado = await obtenerEstudiantesAPI(claseSeleccionada.id, usuario.token);
+          if (resultado && resultado.ok) {
+            const estudiantes = resultado.estudiantes || [];
+            setEstudiantes([...estudiantes]);
+          } else if (resultado && Array.isArray(resultado)) {
+            setEstudiantes([...resultado]);
+          }
+        } catch (error) {
+          console.error('Error al cargar estudiantes:', error);
+        }
+      };
+      cargarEstudiantes();
       setAsistenciaMap({}); // Resetear selecciones
     }
-  }, [claseSeleccionada]);
+  }, [claseSeleccionada?.id, usuario.token]);
+
+  // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+  useEffect(() => {
+    return () => {
+      setMenuVisible(false);
+      setDropdownVisible(false);
+      setBusqueda("");
+    };
+  }, []);
 
   // ── Seleccionar clase ─────────────────────────────────────────────────────
-  const handleSeleccionarClase = (clase) => {
+  const handleSeleccionarClase = async (clase) => {
     setClaseSeleccionada(clase);
     setDropdownVisible(false);
     setBusqueda("");
     setAsistenciaMap({});
-    setEstudiantes([...obtenerEstudiantesPorClase(clase.id)]);
+    
+    try {
+      const resultado = await obtenerEstudiantesAPI(clase.id, usuario.token);
+      if (resultado && resultado.ok) {
+        const estudiantes = resultado.estudiantes || [];
+        setEstudiantes([...estudiantes]);
+      } else if (resultado && Array.isArray(resultado)) {
+        setEstudiantes([...resultado]);
+      }
+    } catch (error) {
+      console.error('Error al cargar estudiantes:', error);
+    }
   };
 
   // ── Marcar asistencia ─────────────────────────────────────────────────────
@@ -129,27 +191,40 @@ export default function ManualView({ setPantalla, onLogout }) {
   };
 
   // ── Guardar asistencia ────────────────────────────────────────────────────
-  const handleGuardar = () => {
+  const handleGuardar = async () => {
     if (!claseSeleccionada) {
       Alert.alert("Error", "Selecciona una clase primero.");
       return;
     }
 
-    const registros = estudiantes.map((est) => ({
-      estudianteId: est.id,
-      asistio: asistenciaMap[est.id] === "asistio",
-    }));
+    if (Object.keys(asistenciaMap).length === 0) {
+      Alert.alert("Error", "Marca la asistencia de al menos un estudiante.");
+      return;
+    }
 
-    const resultado = guardarAsistenciaManual({
-      claseId:   claseSeleccionada.id,
-      registros,
-    });
+    setCargando(true);
+    try {
+      const registros = Object.entries(asistenciaMap).map(([estudianteId, estado]) => ({
+        estudianteId: estudianteId,  // Es un string "STU-2026-XXXXX", no un número
+        asistio: estado === "asistio",
+      }));
 
-    if (resultado.ok) {
-      Alert.alert("✅ Guardado", resultado.mensaje);
-      setAsistenciaMap({});
-    } else {
-      Alert.alert("Error", resultado.mensaje);
+      const resultado = await registrarAsistenciaManualAPI(
+        claseSeleccionada.id,
+        registros,
+        usuario.token
+      );
+
+      if (resultado && resultado.ok) {
+        Alert.alert("✅ Éxito", resultado.mensaje || "Asistencia registrada correctamente");
+        setAsistenciaMap({});
+      } else {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo registrar la asistencia");
+      }
+    } catch (error) {
+      Alert.alert("❌ Error", error.message || "Error al guardar asistencia");
+    } finally {
+      setCargando(false);
     }
   };
 
@@ -197,7 +272,7 @@ export default function ManualView({ setPantalla, onLogout }) {
         {/* Info */}
         <View style={styles.estInfo}>
           <Text style={styles.estNombre}>{item.nombre}</Text>
-          <Text style={styles.estId}>ID: {item.id}</Text>
+          <Text style={styles.estId}>ID: {item.numero_identificacion || item.id}</Text>
 
           {/* Botones ASISTIÓ / FALTÓ */}
           <View style={styles.botonesRow}>
@@ -259,36 +334,11 @@ export default function ManualView({ setPantalla, onLogout }) {
     <SafeAreaView style={styles.safeArea}>
       <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
 
-      {/* ── HEADER ────────────────────────────────────────────────────── */}
-      <View style={styles.header}>
-        <TouchableOpacity 
-          style={styles.menuBtn} 
-          accessibilityLabel="Menú"
-          onPress={() => setMenuVisible(!menuVisible)}
-        >
-          <Text style={styles.menuIcon}>☰</Text>
-        </TouchableOpacity>
-        <Text style={styles.headerTitle}>SmartAttendance</Text>
-        <View style={styles.avatarWrap}>
-          <Text style={styles.avatarWrapText}>👤</Text>
-        </View>
-      </View>
-
-      {/* Menú desplegable */}
-      {menuVisible && (
-        <View style={styles.menuDropdown}>
-          <TouchableOpacity
-            style={styles.menuItem}
-            onPress={() => {
-              setMenuVisible(false);
-              if (onLogout) onLogout();
-            }}
-            activeOpacity={0.7}
-          >
-            <Text style={styles.menuItemText}>Cerrar sesión</Text>
-          </TouchableOpacity>
-        </View>
-      )}
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+      />
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
       <ScrollView
@@ -434,58 +484,6 @@ const styles = StyleSheet.create({
   },
 
   // Header
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-  },
-  menuBtn:    { padding: 4 },
-  menuIcon:   { fontSize: 20, color: COLORS.primary },
-  headerTitle: {
-    fontSize: 18, fontWeight: "700",
-    color: COLORS.primary, letterSpacing: 0.3,
-  },
-  avatarWrap: {
-    width: 38, height: 38, borderRadius: 19,
-    backgroundColor: COLORS.primary,
-    alignItems: "center", justifyContent: "center",
-  },
-  avatarWrapText: { fontSize: 20 },
-
-  // Menú desplegable
-  menuDropdown: {
-    position: "absolute",
-    top: 48,
-    left: 0,
-    right: 0,
-    backgroundColor: COLORS.white,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.navBorder,
-    zIndex: 100,
-  },
-  menuItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 20,
-    paddingVertical: 14,
-    borderBottomWidth: 1,
-    borderBottomColor: COLORS.border,
-  },
-  menuItemIcon: {
-    fontSize: 18,
-    marginRight: 12,
-  },
-  menuItemText: {
-    fontSize: 15,
-    fontWeight: "600",
-    color: COLORS.text,
-  },
-
   // Título
   panelTitle: {
     fontSize: 26, fontWeight: "800",
@@ -607,10 +605,7 @@ const styles = StyleSheet.create({
   guardarWrap: {
     paddingHorizontal: 16,
     paddingVertical: 12,
-    paddingBottom: 70,
     backgroundColor: COLORS.background,
-    borderTopWidth: 1,
-    borderTopColor: COLORS.navBorder,
     position: 'absolute',
     bottom: 0,
     left: 0,
