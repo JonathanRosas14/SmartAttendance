@@ -203,18 +203,7 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
     });
   };
 
-  // ── Guardar asistencia ────────────────────────────────────────────────────
-  const handleGuardar = async () => {
-    if (!claseSeleccionada) {
-      Alert.alert("Error", "Selecciona una clase primero.");
-      return;
-    }
-
-    if (Object.keys(asistenciaMap).length === 0) {
-      Alert.alert("Error", "Marca la asistencia de al menos un estudiante.");
-      return;
-    }
-
+  const ejecutarGuardarAsistencia = async () => {
     setCargando(true);
     try {
       const registros = Object.entries(asistenciaMap).map(([estudianteId, estado]) => ({
@@ -229,16 +218,38 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
       );
 
       if (resultado && resultado.ok) {
-        Alert.alert("✅ Éxito", resultado.mensaje || "Asistencia registrada correctamente");
+        Alert.alert("Éxito", resultado.mensaje || "Asistencia registrada correctamente.");
         setAsistenciaMap({});
       } else {
-        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo registrar la asistencia");
+        Alert.alert("Error", resultado?.mensaje || "No se pudo registrar la asistencia.");
       }
     } catch (error) {
-      Alert.alert("❌ Error", error.message || "Error al guardar asistencia");
+      Alert.alert("Error", error.message || "Error al guardar asistencia.");
     } finally {
       setCargando(false);
     }
+  };
+
+  // ── Guardar asistencia ────────────────────────────────────────────────────
+  const handleGuardar = () => {
+    if (!claseSeleccionada) {
+      Alert.alert("Validación", "Selecciona una clase primero.");
+      return;
+    }
+
+    if (Object.keys(asistenciaMap).length === 0) {
+      Alert.alert("Validación", "Marca la asistencia de al menos un estudiante.");
+      return;
+    }
+
+    Alert.alert(
+      "Confirmar acción",
+      "¿Deseas guardar la asistencia de esta sesión?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Guardar", onPress: ejecutarGuardarAsistencia },
+      ]
+    );
   };
 
   // ── Filtrar por búsqueda ──────────────────────────────────────────────────

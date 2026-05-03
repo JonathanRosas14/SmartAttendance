@@ -2,7 +2,7 @@
 // Este archivo define todos los modelos de datos principales del sistema
 // Aquí declaramos los arrays en memoria donde se guardan clases, asistencias, usuarios, etc.
 
-import { guardarEnStorage } from '../utils/storage';
+import { eliminarClavesSmartAttendance } from '../utils/storage';
 import { estudiantes } from './estudiantes';
 
 // Arrays globales que almacenan los datos en memoria durante la sesión
@@ -33,78 +33,31 @@ export let usuariosRegistrados = {
   ],
 };
 
-// Cuando la app inicia, cargamos todos los datos que fueron guardados en el almacenamiento local
-// Esto asegura que los datos persistan incluso si cierran la app
+// Cuando la app inicia, limpiamos claves heredadas de storage y reiniciamos estado en memoria.
 export async function cargarDatosDelStorage() {
   try {
-    const { obtenerDelStorage } = await import('../utils/storage.js');
-    
-    // Cargar todas las clases creadas
-    const clasesGuardadas = await obtenerDelStorage('sa_clases', []);
-    clases.splice(0, clases.length, ...clasesGuardadas);
-    console.log('✅ Clases cargadas:', clases.length);
-    
-    // Cargar todos los registros de asistencia
-    const asistenciasGuardadas = await obtenerDelStorage('sa_asistencias', []);
-    asistencias.splice(0, asistencias.length, ...asistenciasGuardadas);
-    console.log('✅ Asistencias cargadas:', asistencias.length);
-    
-    // Cargar el registro de errores (para debugging)
-    const errorLogsGuardados = await obtenerDelStorage('sa_errorLogs', []);
-    errorLogs.splice(0, errorLogs.length, ...errorLogsGuardados);
-    console.log('✅ Error logs cargados:', errorLogs.length);
-    
-    // Cargar los estudiantes vinculados a las clases
-    const estudiantesGuardados = await obtenerDelStorage('sa_estudiantes_vinculados', []);
-    estudiantes.splice(0, estudiantes.length, ...estudiantesGuardados);
-    console.log('✅ Estudiantes vinculados cargados:', estudiantes.length);
-    
-    // Cargar los usuarios registrados (profesores y estudiantes de login)
-    const usuariosGuardados = await obtenerDelStorage('sa_usuarios_registrados', usuariosRegistrados);
-    usuariosRegistrados.profesores = usuariosGuardados.profesores || usuariosRegistrados.profesores;
-    usuariosRegistrados.estudiantes = usuariosGuardados.estudiantes || usuariosRegistrados.estudiantes;
-    console.log('✅ Usuarios registrados cargados:', usuariosRegistrados.profesores.length + usuariosRegistrados.estudiantes.length);
+    await eliminarClavesSmartAttendance();
+    clases.splice(0, clases.length);
+    asistencias.splice(0, asistencias.length);
+    errorLogs.splice(0, errorLogs.length);
+    estudiantes.splice(0, estudiantes.length);
   } catch (error) {
     console.error('❌ Error cargando datos:', error);
   }
 }
 
-// Guardar el array de asistencias en el almacenamiento persistente
 export async function guardarAsistenciasEnStorage() {
-  try {
-    await guardarEnStorage('sa_asistencias', asistencias);
-    console.log('✅ Asistencias guardadas en storage');
-  } catch (error) {
-    console.error('❌ Error guardando asistencias:', error);
-  }
+  return;
 }
 
-// Guardar el array de clases en el almacenamiento persistente  
 export async function guardarClasesEnStorage() {
-  try {
-    await guardarEnStorage('sa_clases', clases);
-    console.log('✅ Clases guardadas en storage');
-  } catch (error) {
-    console.error('❌ Error guardando clases:', error);
-  }
+  return;
 }
 
-// Guardar los estudiantes vinculados a clases en el almacenamiento persistente
 export async function guardarEstudiantesEnStorage() {
-  try {
-    await guardarEnStorage('sa_estudiantes_vinculados', estudiantes);
-    console.log('✅ Estudiantes vinculados guardados en storage');
-  } catch (error) {
-    console.error('❌ Error guardando estudiantes:', error);
-  }
+  return;
 }
 
-// Guardar los usuarios registrados (profesores y estudiantes) en el almacenamiento persistente
 export async function guardarUsuariosEnStorage() {
-  try {
-    await guardarEnStorage('sa_usuarios_registrados', usuariosRegistrados);
-    console.log('✅ Usuarios registrados guardados en storage');
-  } catch (error) {
-    console.error('❌ Error guardando usuarios:', error);
-  }
+  return;
 }

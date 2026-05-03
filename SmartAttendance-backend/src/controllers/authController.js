@@ -84,24 +84,55 @@ export async function registrarEstudiante(req, res) {
   }
 
   try {
-    // Verificar si el correo ya existe
-    const existe = await pool.query(
+    // Verificar si el número de identificación ya existe
+    const existeNumId = await pool.query(
+      "SELECT id, correo, contrasena FROM estudiantes WHERE numero_identificacion = $1",
+      [numId]
+    );
+
+    // Si ya existe, distinguir entre cuenta real y placeholder creado por vinculación
+    if (existeNumId.rows.length > 0) {
+      const estudianteExistente = existeNumId.rows[0];
+      const esPlaceholder =
+        estudianteExistente.correo?.endsWith("@temp.edu") ||
+        estudianteExistente.contrasena === "sin_cuenta";
+
+      if (!esPlaceholder) {
+        return res.status(400).json({ ok: false, mensaje: "El número de identificación ya está registrado." });
+      }
+
+      // Validar correo duplicado excluyendo al mismo estudiante placeholder
+      const correoDuplicado = await pool.query(
+        "SELECT id FROM estudiantes WHERE correo = $1 AND id <> $2",
+        [correo, estudianteExistente.id]
+      );
+
+      if (correoDuplicado.rows.length > 0) {
+        return res.status(400).json({ ok: false, mensaje: "El correo ya está registrado." });
+      }
+
+      const hash = await bcrypt.hash(contrasena, 10);
+      await pool.query(
+        `UPDATE estudiantes
+         SET nombre = $1, correo = $2, contrasena = $3, celular = $4
+         WHERE id = $5`,
+        [nombre, correo, hash, celular, estudianteExistente.id]
+      );
+
+      return res.status(200).json({
+        ok: true,
+        mensaje: `Cuenta activada para ${nombre}.`,
+      });
+    }
+
+    // Registro normal de estudiante nuevo
+    const existeCorreo = await pool.query(
       "SELECT id FROM estudiantes WHERE correo = $1",
       [correo]
     );
 
-    if (existe.rows.length > 0) {
+    if (existeCorreo.rows.length > 0) {
       return res.status(400).json({ ok: false, mensaje: "El correo ya está registrado." });
-    }
-
-    // Verificar si el número de identificación ya existe
-    const existeNumId = await pool.query(
-      "SELECT id FROM estudiantes WHERE numero_identificacion = $1",
-      [numId]
-    );
-
-    if (existeNumId.rows.length > 0) {
-      return res.status(400).json({ ok: false, mensaje: "El número de identificación ya está registrado." });
     }
 
     const estudianteId = generarId("STU");

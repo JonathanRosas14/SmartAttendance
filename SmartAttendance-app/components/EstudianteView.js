@@ -283,17 +283,7 @@ export default function EstudianteView({ usuario, setPantalla, onLogout }) {
         await refreshEstudiantes(clase.id);
     };
 
-    // ── Vincular estudiante ───────────────────────────────────────────────────
-    const handleVincular = async () => {
-        if (!claseSeleccionada) {
-        Alert.alert("Error", "Primero selecciona una clase.");
-        return;
-        }
-        if (!nombre.trim() || !idEst.trim() || !celular.trim()) {
-        Alert.alert("Error", "Todos los campos son obligatorios.");
-        return;
-        }
-
+    const ejecutarVincular = async () => {
         setCargando(true);
         try {
             const resultado = await agregarEstudianteAPI(
@@ -305,19 +295,40 @@ export default function EstudianteView({ usuario, setPantalla, onLogout }) {
             );
 
             if (resultado && resultado.ok) {
-                Alert.alert("✅ Éxito", resultado.mensaje || "Estudiante agregado correctamente");
+                Alert.alert("Éxito", resultado.mensaje || "Estudiante agregado correctamente.");
                 setNombre("");
                 setIdEst("");
                 setCelular("");
                 await refreshEstudiantes(claseSeleccionada.id);
             } else {
-                Alert.alert("❌ Error", resultado?.mensaje || "No se pudo agregar el estudiante");
+                Alert.alert("Error", resultado?.mensaje || "No se pudo agregar el estudiante.");
             }
         } catch (error) {
-            Alert.alert("❌ Error", error.message || "Error al agregar el estudiante");
+            Alert.alert("Error", error.message || "Error al agregar el estudiante.");
         } finally {
             setCargando(false);
         }
+    };
+
+    // ── Vincular estudiante ───────────────────────────────────────────────────
+    const handleVincular = () => {
+        if (!claseSeleccionada) {
+        Alert.alert("Validación", "Primero selecciona una clase.");
+        return;
+        }
+        if (!nombre.trim() || !idEst.trim() || !celular.trim()) {
+        Alert.alert("Validación", "Todos los campos son obligatorios.");
+        return;
+        }
+
+        Alert.alert(
+            "Confirmar acción",
+            "¿Deseas vincular este estudiante a la clase seleccionada?",
+            [
+                { text: "Cancelar", style: "cancel" },
+                { text: "Vincular", onPress: ejecutarVincular },
+            ]
+        );
     };
 
     // ── Eliminar estudiante ───────────────────────────────────────────────────
@@ -346,13 +357,13 @@ export default function EstudianteView({ usuario, setPantalla, onLogout }) {
                 await refreshEstudiantes(claseSeleccionada.id);
                 
                 if (Platform.OS !== 'web') {
-                    Alert.alert("✅ Eliminado", `${nombre} fue eliminado correctamente.`);
+                    Alert.alert("Éxito", `${nombre} fue eliminado correctamente.`);
                 }
             } else {
-                Alert.alert("❌ Error", resultado?.mensaje || "No se pudo eliminar el estudiante");
+                Alert.alert("Error", resultado?.mensaje || "No se pudo eliminar el estudiante.");
             }
         } catch (error) {
-            Alert.alert("❌ Error", error.message || "Error al eliminar el estudiante");
+            Alert.alert("Error", error.message || "Error al eliminar el estudiante.");
         } finally {
             setCargando(false);
         }
