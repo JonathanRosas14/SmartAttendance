@@ -130,28 +130,6 @@ export default function EstudianteMainView({ usuario, onLogout, onPerfilActualiz
           </Text>
         </TouchableOpacity>
 
-        <TouchableOpacity
-          style={styles.navItem}
-          onPress={() => setPantalla("perfil")}
-          activeOpacity={0.7}
-        >
-          <Text
-            style={[
-              styles.navIcon,
-              pantalla === "perfil" && styles.navIconActive,
-            ]}
-          >
-            👤
-          </Text>
-          <Text
-            style={[
-              styles.navLabel,
-              pantalla === "perfil" && styles.navLabelActive,
-            ]}
-          >
-            PERFIL
-          </Text>
-        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

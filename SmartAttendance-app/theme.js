@@ -7,6 +7,7 @@ import {
   Text,
   TouchableOpacity,
   StyleSheet,
+  Alert,
 } from "react-native";
 
 // Paleta de colores usada en toda la app para mantener consistencia visual
@@ -53,7 +54,16 @@ export function Header({ menuVisible, setMenuVisible, onLogout, onSettings }) {
             style={headerStyles.menuItem}
             onPress={() => {
               setMenuVisible(false);
-              if (onLogout) onLogout();
+              if (onLogout) {
+                Alert.alert(
+                  "Confirmar acción",
+                  "¿Seguro que deseas cerrar sesión?",
+                  [
+                    { text: "Cancelar", style: "cancel" },
+                    { text: "Cerrar sesión", style: "destructive", onPress: onLogout },
+                  ]
+                );
+              }
             }}
             activeOpacity={0.7}
           >

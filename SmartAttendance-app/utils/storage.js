@@ -6,6 +6,13 @@ import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const isWeb = Platform.OS === 'web';
+const SMART_ATTENDANCE_KEYS = [
+  'sa_clases',
+  'sa_asistencias',
+  'sa_errorLogs',
+  'sa_estudiantes_vinculados',
+  'sa_usuarios_registrados',
+];
 
 // Guarda datos en el almacenamiento local (ya sea localStorage o AsyncStorage)
 // La app puede recuperar estos datos aunque el usuario cierre la aplicación
@@ -20,8 +27,6 @@ export async function guardarEnStorage(key, data) {
       // En dispositivos móviles usamos AsyncStorage
       await AsyncStorage.setItem(key, jsonData);
     }
-    
-    console.log(`✅ Datos guardados en storage: ${key}`);
   } catch (error) {
     console.error(`❌ Error guardando "${key}":`, error);
   }
@@ -58,7 +63,6 @@ export async function eliminarDelStorage(key) {
     } else {
       await AsyncStorage.removeItem(key);
     }
-    console.log(`✅ Datos eliminados del storage: ${key}`);
   } catch (error) {
     console.error(`❌ Error eliminando "${key}":`, error);
   }
@@ -72,8 +76,20 @@ export async function limpiarStorage() {
     } else {
       await AsyncStorage.clear();
     }
-    console.log(`✅ Storage limpiado completamente`);
   } catch (error) {
     console.error(`❌ Error limpiando storage:`, error);
+  }
+}
+
+export async function eliminarClavesSmartAttendance() {
+  try {
+    if (isWeb) {
+      SMART_ATTENDANCE_KEYS.forEach((key) => localStorage.removeItem(key));
+      return;
+    }
+
+    await AsyncStorage.multiRemove(SMART_ATTENDANCE_KEYS);
+  } catch (error) {
+    console.error("❌ Error limpiando claves SmartAttendance:", error);
   }
 }

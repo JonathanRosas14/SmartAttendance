@@ -487,17 +487,7 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
     setPickerVisible(false);
   }, [pickerMode]);
 
-  // Crear clase
-  const handleCrearClase = useCallback(async () => {
-    if (!formData.nombre.trim()) {
-      Alert.alert("Error", "El nombre de la clase no puede estar vacío.");
-      return;
-    }
-    if (!formData.horaInicio || !formData.horaFin) {
-      Alert.alert("Error", "Debes seleccionar hora de inicio y fin.");
-      return;
-    }
-
+  const ejecutarCrearClase = useCallback(async () => {
     setCargando(true);
     try {
       const resultado = await crearClaseAPI(
@@ -508,18 +498,39 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
       );
 
       if (resultado && resultado.ok) {
-        Alert.alert("✅ Éxito", resultado.mensaje || "Clase creada correctamente");
+        Alert.alert("Éxito", resultado.mensaje || "Clase creada correctamente.");
         setFormData({ nombre: "", horaInicio: "", horaFin: "" });
         await refreshClases();
       } else {
-        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo crear la clase");
+        Alert.alert("Error", resultado?.mensaje || "No se pudo crear la clase.");
       }
     } catch (error) {
-      Alert.alert("❌ Error", error.message || "Error al crear la clase");
+      Alert.alert("Error", error.message || "Error al crear la clase.");
     } finally {
       setCargando(false);
     }
   }, [formData, usuario.token, refreshClases]);
+
+  // Crear clase
+  const handleCrearClase = useCallback(() => {
+    if (!formData.nombre.trim()) {
+      Alert.alert("Validación", "El nombre de la clase no puede estar vacío.");
+      return;
+    }
+    if (!formData.horaInicio || !formData.horaFin) {
+      Alert.alert("Validación", "Debes seleccionar hora de inicio y fin.");
+      return;
+    }
+
+    Alert.alert(
+      "Confirmar acción",
+      "¿Deseas crear esta clase?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Crear", onPress: ejecutarCrearClase },
+      ]
+    );
+  }, [formData, ejecutarCrearClase]);
 
   // Iniciar edición
   const handleIniciarEdicion = useCallback((clase) => {
@@ -531,8 +542,7 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
     });
   }, []);
 
-  // Guardar edición
-  const handleGuardarEdicion = useCallback(async () => {
+  const ejecutarGuardarEdicion = useCallback(async () => {
     setCargando(true);
     try {
       const resultado = await actualizarClaseAPI(
@@ -544,18 +554,35 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
       );
 
       if (resultado && resultado.ok) {
-        Alert.alert("✅ Actualizado", resultado.mensaje || "Clase actualizada correctamente");
+        Alert.alert("Éxito", resultado.mensaje || "Clase actualizada correctamente.");
         setEditandoId(null);
         await refreshClases();
       } else {
-        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo actualizar la clase");
+        Alert.alert("Error", resultado?.mensaje || "No se pudo actualizar la clase.");
       }
     } catch (error) {
-      Alert.alert("❌ Error", error.message || "Error al actualizar la clase");
+      Alert.alert("Error", error.message || "Error al actualizar la clase.");
     } finally {
       setCargando(false);
     }
   }, [editandoId, formData, usuario.token, refreshClases]);
+
+  // Guardar edición
+  const handleGuardarEdicion = useCallback(() => {
+    if (!formData.nombre.trim() || !formData.horaInicio || !formData.horaFin) {
+      Alert.alert("Validación", "Completa nombre, hora de inicio y hora de fin.");
+      return;
+    }
+
+    Alert.alert(
+      "Confirmar acción",
+      "¿Deseas actualizar esta clase?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Actualizar", onPress: ejecutarGuardarEdicion },
+      ]
+    );
+  }, [formData, ejecutarGuardarEdicion]);
 
   // Cancelar edición
   const handleCancelarEdicion = useCallback(() => {
@@ -584,13 +611,13 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
         await refreshClases();
         
         if (Platform.OS !== 'web') {
-          Alert.alert("✅ Eliminado", `La clase "${nombre}" fue eliminada correctamente.`);
+          Alert.alert("Éxito", `La clase "${nombre}" fue eliminada correctamente.`);
         }
       } else {
-        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo eliminar la clase");
+        Alert.alert("Error", resultado?.mensaje || "No se pudo eliminar la clase.");
       }
     } catch (error) {
-      Alert.alert("❌ Error", error.message || "Error al eliminar la clase");
+      Alert.alert("Error", error.message || "Error al eliminar la clase.");
     } finally {
       setCargando(false);
     }

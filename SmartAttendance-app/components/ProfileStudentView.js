@@ -21,20 +21,7 @@ export default function ProfileStudentView({ usuario, onLogout, onPerfilActualiz
   const [contrasena, setContrasena] = useState("");
   const [cargando, setCargando] = useState(false);
 
-  const handleGuardar = async () => {
-    if (!nombre.trim() || !celular.trim() || !correo.trim()) {
-      Alert.alert("Validación", "Nombre, teléfono y correo son obligatorios.");
-      return;
-    }
-    if (!correo.includes("@")) {
-      Alert.alert("Validación", "Ingresa un correo válido.");
-      return;
-    }
-    if (contrasena.trim() && contrasena.trim().length < 8) {
-      Alert.alert("Validación", "La contraseña debe tener al menos 8 caracteres.");
-      return;
-    }
-
+  const ejecutarGuardadoPerfil = async () => {
     setCargando(true);
     try {
       const resultado = await actualizarPerfilEstudianteAPI(
@@ -54,12 +41,36 @@ export default function ProfileStudentView({ usuario, onLogout, onPerfilActualiz
         onPerfilActualizado({ ...usuario, ...resultado.usuario });
       }
       setContrasena("");
-      Alert.alert("Perfil actualizado", resultado.mensaje || "Datos guardados correctamente.");
+      Alert.alert("Éxito", resultado.mensaje || "Datos guardados correctamente.");
     } catch (error) {
       Alert.alert("Error", error.message || "No se pudo actualizar el perfil.");
     } finally {
       setCargando(false);
     }
+  };
+
+  const handleGuardar = () => {
+    if (!nombre.trim() || !celular.trim() || !correo.trim()) {
+      Alert.alert("Validación", "Nombre, teléfono y correo son obligatorios.");
+      return;
+    }
+    if (!correo.includes("@")) {
+      Alert.alert("Validación", "Ingresa un correo válido.");
+      return;
+    }
+    if (contrasena.trim() && contrasena.trim().length < 8) {
+      Alert.alert("Validación", "La contraseña debe tener al menos 8 caracteres.");
+      return;
+    }
+
+    Alert.alert(
+      "Confirmar acción",
+      "¿Deseas guardar los cambios del perfil?",
+      [
+        { text: "Cancelar", style: "cancel" },
+        { text: "Guardar", onPress: ejecutarGuardadoPerfil },
+      ]
+    );
   };
 
   return (
