@@ -208,6 +208,7 @@ export default function QRView({ usuario, setPantalla, onLogout }) {
         menuVisible={menuVisible} 
         setMenuVisible={setMenuVisible} 
         onLogout={onLogout}
+        onSettings={() => setPantalla("perfil-profesor")}
       />
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}

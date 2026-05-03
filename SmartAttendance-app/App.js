@@ -23,6 +23,8 @@ import ExportView from "./components/ExportView";
 import LoginView from "./components/LoginView";
 import RegisterRolView from "./components/RegisterRolView";
 import FormRegistroView from "./components/FormRegistroView";
+import ProfileProfesorView from "./components/ProfileProfesorView";
+import ProfileStudentView from "./components/ProfileStudentView";
 
 // Al iniciar la app, cargamos todos los datos que fueron guardados en almacenamiento local
 import { cargarDatosDelStorage } from "./models/clases";
@@ -78,6 +80,10 @@ export default function App() {
     setMostrarRegistro(false);
     setRolSeleccionado(null);
     setMostrarFormulario(false);
+  };
+
+  const handlePerfilActualizado = (usuarioActualizado) => {
+    setUsuario((prev) => ({ ...prev, ...usuarioActualizado }));
   };
 
   // El usuario seleccionó un rol (profesor o estudiante) y ahora llena el formulario
@@ -153,6 +159,15 @@ export default function App() {
         return <ManualView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
       case "exportar":
         return <ExportView usuario={usuario} setPantalla={setPantalla} onLogout={handleLogout} />;
+      case "perfil-profesor":
+        return (
+          <ProfileProfesorView
+            usuario={usuario}
+            onLogout={handleLogout}
+            onPerfilActualizado={handlePerfilActualizado}
+            onVolver={() => setPantalla("clases")}
+          />
+        );
       default:
         return <ProfesorView usuario={usuario} setPantalla={setPantalla} />;
     }
@@ -164,7 +179,11 @@ export default function App() {
 
       {/* Los estudiantes tienen su propia interfaz: EstudianteMainView */}
       {usuario && usuario.rol === "estudiante" ? (
-        <EstudianteMainView usuario={usuario} onLogout={handleLogout} />
+        <EstudianteMainView
+          usuario={usuario}
+          onLogout={handleLogout}
+          onPerfilActualizado={handlePerfilActualizado}
+        />
       ) : (
         <View style={{ flex: 1, flexDirection: "column" }}>
           {/* Mostramos la pantalla actual del profesor */}

@@ -722,6 +722,7 @@ export default function ProfesorView({ usuario, setPantalla, onLogout }) {
         menuVisible={menuVisible} 
         setMenuVisible={setMenuVisible} 
         onLogout={onLogout}
+        onSettings={() => setPantalla("perfil-profesor")}
       />
 
       <ScrollView

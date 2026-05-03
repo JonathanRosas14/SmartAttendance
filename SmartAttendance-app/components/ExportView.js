@@ -669,6 +669,7 @@ export default function ExportView({ usuario, setPantalla, onLogout }) {
         menuVisible={menuVisible} 
         setMenuVisible={setMenuVisible} 
         onLogout={onLogout}
+        onSettings={() => setPantalla("perfil-profesor")}
       />
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}

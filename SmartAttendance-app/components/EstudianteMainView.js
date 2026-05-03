@@ -21,10 +21,11 @@ import plannig from "../assets/icons/planning.png";
 // Importamos los componentes de escaneo y historial
 import EscanearQRView from "./EscanearQRViewStudent";
 import HistorialView from "./HistorialViewStudent";
+import ProfileStudentView from "./ProfileStudentView";
 
 import { Header, COLORS } from "../theme";
 
-export default function EstudianteMainView({ usuario, onLogout }) {
+export default function EstudianteMainView({ usuario, onLogout, onPerfilActualizado }) {
   // Pantalla actual que se está viendo (qr o historial)
   const [pantalla, setPantalla] = useState("qr");
   const [menuVisible, setMenuVisible] = useState(false);
@@ -39,6 +40,7 @@ export default function EstudianteMainView({ usuario, onLogout }) {
             menuVisible={menuVisible}
             setMenuVisible={setMenuVisible}
             onLogout={onLogout}
+            onSettings={() => setPantalla("perfil")}
           />
         );
       case "historial":
@@ -48,10 +50,28 @@ export default function EstudianteMainView({ usuario, onLogout }) {
             menuVisible={menuVisible}
             setMenuVisible={setMenuVisible}
             onLogout={onLogout}
+            onSettings={() => setPantalla("perfil")}
+          />
+        );
+      case "perfil":
+        return (
+          <ProfileStudentView
+            usuario={usuario}
+            onLogout={onLogout}
+            onPerfilActualizado={onPerfilActualizado}
+            onVolver={() => setPantalla("qr")}
           />
         );
       default:
-        return <EscanearQRView usuario={usuario} onLogout={onLogout} />;
+        return (
+          <EscanearQRView
+            usuario={usuario}
+            menuVisible={menuVisible}
+            setMenuVisible={setMenuVisible}
+            onLogout={onLogout}
+            onSettings={() => setPantalla("perfil")}
+          />
+        );
     }
   };
 
@@ -107,6 +127,29 @@ export default function EstudianteMainView({ usuario, onLogout }) {
             ]}
           >
             HISTORIAL
+          </Text>
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.navItem}
+          onPress={() => setPantalla("perfil")}
+          activeOpacity={0.7}
+        >
+          <Text
+            style={[
+              styles.navIcon,
+              pantalla === "perfil" && styles.navIconActive,
+            ]}
+          >
+            👤
+          </Text>
+          <Text
+            style={[
+              styles.navLabel,
+              pantalla === "perfil" && styles.navLabelActive,
+            ]}
+          >
+            PERFIL
           </Text>
         </TouchableOpacity>
       </View>

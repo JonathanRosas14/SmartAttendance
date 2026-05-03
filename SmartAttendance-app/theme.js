@@ -29,7 +29,7 @@ export const COLORS = {
 };
 
 // ─── Componente Header Reutilizable ─────────────────────────────────────────
-export function Header({ menuVisible, setMenuVisible, onLogout }) {
+export function Header({ menuVisible, setMenuVisible, onLogout, onSettings }) {
   return (
     <>
       {/* Header fijo */}
@@ -63,6 +63,7 @@ export function Header({ menuVisible, setMenuVisible, onLogout }) {
             style={headerStyles.menuItem}
             onPress={() => {
               setMenuVisible(false);
+              if (onSettings) onSettings();
             }}
             activeOpacity={0.7}
           >

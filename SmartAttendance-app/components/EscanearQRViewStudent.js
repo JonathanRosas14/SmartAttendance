@@ -61,7 +61,7 @@ function obtenerNumeroSerieDispositivo() {
   }
 }
 
-export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVisible, onLogout }) {
+export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVisible, onLogout, onSettings }) {
   // Controla si la cámara está abierta
   const [camaraAbierta, setCamaraAbierta] = useState(false);
   const [cargando, setCargando] = useState(false);
@@ -183,6 +183,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
         menuVisible={menuVisible} 
         setMenuVisible={setMenuVisible} 
         onLogout={onLogout}
+        onSettings={onSettings}
       />
 
       {!camaraAbierta ? (

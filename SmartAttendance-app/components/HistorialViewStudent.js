@@ -37,7 +37,7 @@ function formatearFecha(fechaStr = "") {
   }
 }
 
-export default function HistorialView({ usuario, menuVisible, setMenuVisible, onLogout }) {
+export default function HistorialView({ usuario, menuVisible, setMenuVisible, onLogout, onSettings }) {
   // Guardamos el historial de asistencias
   const [historial, setHistorial]   = useState([]);
   const [cargando, setCargando] = useState(true);
@@ -82,6 +82,7 @@ export default function HistorialView({ usuario, menuVisible, setMenuVisible, on
         menuVisible={menuVisible} 
         setMenuVisible={setMenuVisible} 
         onLogout={onLogout}
+        onSettings={onSettings}
       />
 
       {/* ── CONTENIDO ───────────────────────────────────────────── */}
