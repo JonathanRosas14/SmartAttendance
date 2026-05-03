@@ -66,6 +66,24 @@ export async function registrarEstudianteAPI(nombre, correo, contrasena, id, cel
   });
 }
 
+export async function actualizarPerfilProfesorAPI(nombre, departamento, correo, contrasena, token) {
+  return request('/auth/perfil/profesor', 'PUT', {
+    nombre,
+    departamento,
+    correo,
+    contrasena,
+  }, token);
+}
+
+export async function actualizarPerfilEstudianteAPI(nombre, celular, correo, contrasena, token) {
+  return request('/auth/perfil/estudiante', 'PUT', {
+    nombre,
+    celular,
+    correo,
+    contrasena,
+  }, token);
+}
+
 // ─── Clases ──────────────────────────────────────────────────────────
 export async function crearClaseAPI(nombre, horaInicio, horaFin, token) {
   return request('/clases', 'POST', {

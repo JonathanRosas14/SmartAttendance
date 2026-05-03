@@ -43,6 +43,19 @@ const AVATAR_COLORS = [
   { bg: "#EDE9FE", text: "#5B21B6" },
 ];
 
+const STATUS_COLORS = {
+  successBg: "#16A34A",
+  successBorder: "#15803D",
+  successCard: "#F0FDF4",
+  dangerBg: "#DC2626",
+  dangerBorder: "#B91C1C",
+  dangerCard: "#FEF2F2",
+  neutralBg: "#FFFFFF",
+  neutralBorder: "#D8E2F0",
+  neutralText: "#6B7A99",
+  activeText: "#FFFFFF",
+};
+
 // Función para extraer las iniciales del nombre de un estudiante
 function getIniciales(nombre = "") {
   const partes = nombre.trim().split(" ").filter(Boolean);
@@ -287,7 +300,7 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
               accessibilityLabel={`Marcar asistió a ${item.nombre}`}
             >
               <Text style={asistio ? styles.btnEstadoIconActivo : styles.btnEstadoIconInactivo}>
-                {asistio ? "✓" : "○"}
+                {asistio}
               </Text>
               <Text
                 style={[
@@ -295,7 +308,7 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
                   asistio ? styles.btnAsistioTextoActivo : styles.btnEstadoTextoInactivo,
                 ]}
               >
-                {asistio ? "ASISTIÓ" : "ASISTIO"}
+                ASISTIÓ
               </Text>
             </TouchableOpacity>
 
@@ -310,7 +323,7 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
               accessibilityLabel={`Marcar faltó a ${item.nombre}`}
             >
               <Text style={falto ? styles.btnEstadoIconActivo : styles.btnEstadoIconInactivo}>
-                {falto ? "✕" : "⊗"}
+                {falto}
               </Text>
               <Text
                 style={[
@@ -338,6 +351,7 @@ export default function ManualView({ usuario, setPantalla, onLogout }) {
         menuVisible={menuVisible} 
         setMenuVisible={setMenuVisible} 
         onLogout={onLogout}
+        onSettings={() => setPantalla("perfil-profesor")}
       />
 
       {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
@@ -540,12 +554,12 @@ const styles = StyleSheet.create({
     borderColor: COLORS.border,
   },
   estCardGreen: {
-    borderColor: COLORS.greenBorder,
-    backgroundColor: "#FAFFFC",
+    borderColor: STATUS_COLORS.successBorder,
+    backgroundColor: STATUS_COLORS.successCard,
   },
   estCardRed: {
-    borderColor: COLORS.redBorder,
-    backgroundColor: "#FFFAFA",
+    borderColor: STATUS_COLORS.dangerBorder,
+    backgroundColor: STATUS_COLORS.dangerCard,
   },
 
   // Avatar
@@ -581,25 +595,27 @@ const styles = StyleSheet.create({
     gap: 5,
   },
   btnEstadoInactivo: {
-    borderColor: COLORS.border,
-    backgroundColor: COLORS.white,
+    borderColor: STATUS_COLORS.neutralBorder,
+    backgroundColor: STATUS_COLORS.neutralBg,
   },
   btnAsistioActivo: {
-    borderColor: COLORS.greenBorder,
-    backgroundColor: COLORS.green,
+    borderColor: STATUS_COLORS.successBorder,
+    backgroundColor: STATUS_COLORS.successBg,
   },
   btnFaltoActivo: {
-    borderColor: COLORS.redBorder,
-    backgroundColor: COLORS.red,
+    borderColor: STATUS_COLORS.dangerBorder,
+    backgroundColor: STATUS_COLORS.dangerBg,
   },
   btnEstadoText: {
-    fontSize: 11, fontWeight: "700", letterSpacing: 0.8,
+    fontSize: 11,
+    fontWeight: "800",
+    letterSpacing: 0.8,
   },
-  btnEstadoTextoInactivo: { color: COLORS.textMuted },
-  btnAsistioTextoActivo:  { color: COLORS.white },
-  btnFaltoTextoActivo:    { color: COLORS.white },
-  btnEstadoIconActivo:    { color: COLORS.white, fontSize: 12 },
-  btnEstadoIconInactivo:  { color: COLORS.textMuted, fontSize: 12 },
+  btnEstadoTextoInactivo: { color: STATUS_COLORS.neutralText },
+  btnAsistioTextoActivo:  { color: STATUS_COLORS.activeText },
+  btnFaltoTextoActivo:    { color: STATUS_COLORS.activeText },
+  btnEstadoIconActivo:    { color: STATUS_COLORS.activeText, fontSize: 12, fontWeight: "800" },
+  btnEstadoIconInactivo:  { color: STATUS_COLORS.neutralText, fontSize: 12 },
 
   // Botón guardar
   guardarWrap: {

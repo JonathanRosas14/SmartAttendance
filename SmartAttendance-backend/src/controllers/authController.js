@@ -55,8 +55,12 @@ export async function login(req, res) {
       rol, 
       nombre: usuario.nombre,
     };
+    if (rol === "profesor") {
+      usuarioData.departamento = usuario.departamento || "";
+    }
     if (rol === "estudiante" && usuario.numero_identificacion) {
       usuarioData.numero_identificacion = usuario.numero_identificacion;
+      usuarioData.celular = usuario.celular || "";
     }
 
     return res.json({
@@ -144,6 +148,130 @@ export async function registrarProfesor(req, res) {
     return res.status(201).json({ ok: true, mensaje: `Profesor ${nombre} registrado exitosamente.` });
   } catch (error) {
     console.error("Error registrando profesor:", error);
+    return res.status(500).json({ ok: false, mensaje: "Error interno del servidor." });
+  }
+}
+
+export async function actualizarPerfilProfesor(req, res) {
+  const { nombre, departamento, correo, contrasena } = req.body;
+  const profesorId = req.usuario?.id;
+
+  if (!profesorId) {
+    return res.status(401).json({ ok: false, mensaje: "Token inválido." });
+  }
+
+  if (!nombre?.trim() || !correo?.trim()) {
+    return res.status(400).json({ ok: false, mensaje: "Nombre y correo son obligatorios." });
+  }
+
+  try {
+    const existeCorreo = await pool.query(
+      "SELECT id FROM profesores WHERE correo = $1 AND id <> $2",
+      [correo.trim(), profesorId]
+    );
+
+    if (existeCorreo.rows.length > 0) {
+      return res.status(400).json({ ok: false, mensaje: "El correo ya está registrado." });
+    }
+
+    let hashContrasena = null;
+    if (contrasena && contrasena.trim()) {
+      if (contrasena.trim().length < 6) {
+        return res.status(400).json({
+          ok: false,
+          mensaje: "La contraseña debe tener al menos 6 caracteres.",
+        });
+      }
+      hashContrasena = await bcrypt.hash(contrasena.trim(), 10);
+    }
+
+    const resultado = await pool.query(
+      `UPDATE profesores
+       SET nombre = $1,
+           departamento = $2,
+           correo = $3,
+           contrasena = COALESCE($4, contrasena)
+       WHERE id = $5
+       RETURNING id, nombre, correo, departamento`,
+      [nombre.trim(), (departamento || "").trim(), correo.trim(), hashContrasena, profesorId]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ ok: false, mensaje: "Profesor no encontrado." });
+    }
+
+    return res.json({
+      ok: true,
+      mensaje: "Perfil actualizado correctamente.",
+      usuario: {
+        ...resultado.rows[0],
+        rol: "profesor",
+      },
+    });
+  } catch (error) {
+    console.error("Error actualizando perfil de profesor:", error);
+    return res.status(500).json({ ok: false, mensaje: "Error interno del servidor." });
+  }
+}
+
+export async function actualizarPerfilEstudiante(req, res) {
+  const { nombre, celular, correo, contrasena } = req.body;
+  const estudianteId = req.usuario?.id;
+
+  if (!estudianteId) {
+    return res.status(401).json({ ok: false, mensaje: "Token inválido." });
+  }
+
+  if (!nombre?.trim() || !celular?.trim() || !correo?.trim()) {
+    return res.status(400).json({ ok: false, mensaje: "Nombre, celular y correo son obligatorios." });
+  }
+
+  try {
+    const existeCorreo = await pool.query(
+      "SELECT id FROM estudiantes WHERE correo = $1 AND id <> $2",
+      [correo.trim(), estudianteId]
+    );
+
+    if (existeCorreo.rows.length > 0) {
+      return res.status(400).json({ ok: false, mensaje: "El correo ya está registrado." });
+    }
+
+    let hashContrasena = null;
+    if (contrasena && contrasena.trim()) {
+      if (contrasena.trim().length < 6) {
+        return res.status(400).json({
+          ok: false,
+          mensaje: "La contraseña debe tener al menos 6 caracteres.",
+        });
+      }
+      hashContrasena = await bcrypt.hash(contrasena.trim(), 10);
+    }
+
+    const resultado = await pool.query(
+      `UPDATE estudiantes
+       SET nombre = $1,
+           celular = $2,
+           correo = $3,
+           contrasena = COALESCE($4, contrasena)
+       WHERE id = $5
+       RETURNING id, nombre, correo, celular, numero_identificacion`,
+      [nombre.trim(), celular.trim(), correo.trim(), hashContrasena, estudianteId]
+    );
+
+    if (resultado.rows.length === 0) {
+      return res.status(404).json({ ok: false, mensaje: "Estudiante no encontrado." });
+    }
+
+    return res.json({
+      ok: true,
+      mensaje: "Perfil actualizado correctamente.",
+      usuario: {
+        ...resultado.rows[0],
+        rol: "estudiante",
+      },
+    });
+  } catch (error) {
+    console.error("Error actualizando perfil de estudiante:", error);
     return res.status(500).json({ ok: false, mensaje: "Error interno del servidor." });
   }
 }
