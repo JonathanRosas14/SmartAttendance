@@ -37,6 +37,8 @@ function formatearFecha(fechaStr = "") {
   }
 }
 
+// Vista que muestra el historial de asistencias del estudiante.
+// Administra estados de carga, error y lista vacía.
 export default function HistorialView({ usuario, menuVisible, setMenuVisible, onLogout, onSettings }) {
   // Guardamos el historial de asistencias
   const [historial, setHistorial]   = useState([]);
@@ -55,6 +57,7 @@ export default function HistorialView({ usuario, menuVisible, setMenuVisible, on
         if (resultado.ok) {
           // El backend retorna los datos en la propiedad 'historial'
           const datos = resultado.historial || [];
+          // Protege contra respuestas inesperadas para evitar romper la UI.
           setHistorial(Array.isArray(datos) ? datos : []);
         } else {
           setError(resultado.mensaje || 'Error al cargar el historial');
@@ -70,6 +73,7 @@ export default function HistorialView({ usuario, menuVisible, setMenuVisible, on
     };
 
     if (usuario?.token) {
+      // Solo consultamos al backend cuando existe sesión/token válido.
       cargarHistorial();
     }
   }, [usuario?.token]);
@@ -96,6 +100,7 @@ export default function HistorialView({ usuario, menuVisible, setMenuVisible, on
           Revisa el registro detallado de tu asistencia semestral.
         </Text>
 
+        {/* Render condicional por estado: cargando -> error -> vacío -> lista */}
         {cargando ? (
           <View style={styles.emptyState}>
             <Text style={styles.emptyText}>Cargando asistencias...</Text>

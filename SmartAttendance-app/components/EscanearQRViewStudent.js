@@ -62,8 +62,13 @@ function obtenerNumeroSerieDispositivo() {
 }
 
 export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVisible, onLogout, onSettings }) {
+  // Vista de escaneo QR para estudiantes:
+  // 1) solicita permisos de cámara
+  // 2) escanea y valida el QR
+  // 3) registra asistencia en backend
   // Controla si la cámara está abierta
   const [camaraAbierta, setCamaraAbierta] = useState(false);
+  // Indica que se está procesando el QR/API (bloquea nuevos escaneos)
   const [cargando, setCargando] = useState(false);
   // Permisos de cámara del dispositivo
   const [permission, requestPermission] = useCameraPermissions();
@@ -73,9 +78,11 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
   // Función para abrir la cámara (primero pide permisos si es necesario)
   const handleAbrirCamara = async () => {
     if (permission?.granted) {
+      // Si ya hay permiso, abrimos inmediatamente.
       setCamaraAbierta(true);
       scannedRef.current = false;
     } else {
+      // Si no hay permiso, lo solicitamos al usuario.
       const { granted } = await requestPermission();
       if (granted) {
         setCamaraAbierta(true);
@@ -97,6 +104,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
     try {
       let qrData;
       try {
+        // El backend genera QR en JSON; aquí lo parseamos.
         qrData = JSON.parse(data);
       } catch {
         Alert.alert("QR inválido", "Formato incorrecto.");
@@ -107,6 +115,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
 
       const { claseId, expiracion } = qrData;
 
+      // Validación mínima: el QR debe identificar una clase.
       if (!claseId) {
         Alert.alert("QR inválido", "Clase no identificada.");
         setCargando(false);
@@ -114,6 +123,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
         return;
       }
 
+      // Validar vigencia para evitar registros con códigos expirados.
       if (Date.now() > expiracion) {
         Alert.alert("QR Expirado", "Solicita uno nuevo.");
         setCargando(false);
@@ -137,6 +147,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
       setCargando(false);
 
       if (resultado.ok) {
+        // Flujo exitoso: cerramos cámara y reseteamos flag para próxima lectura.
         Alert.alert("✅ ¡Asistencia Registrada!", resultado.mensaje, [
           {
             text: "OK",
@@ -147,6 +158,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
           },
         ]);
       } else {
+        // Flujo con error de negocio: permitir reintentar sin reiniciar toda la vista.
         Alert.alert("❌ Error", resultado.mensaje, [
           {
             text: "Reintentar",
@@ -186,6 +198,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
         onSettings={onSettings}
       />
 
+      {/* Cuando la cámara está abierta, renderizamos el escáner en pantalla completa */}
       {!camaraAbierta ? (
         <ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           <Text style={styles.bienvenidoLabel}>BIENVENIDO,</Text>
@@ -211,6 +224,7 @@ export default function EscanearQRViewStudent({ usuario, menuVisible, setMenuVis
             facing="back"
             style={styles.camera}
             barcodeScannerSettings={{ barcodeTypes: ["qr"] }}
+            // Si está cargando, desactivamos callback para evitar múltiples lecturas.
             onBarcodeScanned={cargando ? undefined : handleBarcodeScanned}
           >
             <View style={styles.cameraOverlay}>
