@@ -41,7 +41,7 @@ Sistema para **gestionar asistencia** en contextos académicos: profesores admin
 
 ```
 ┌─────────────────────────┐         HTTPS/HTTP          ┌──────────────────────────┐
-│  SmartAttendance-app    │  fetch (JSON + Bearer JWT)   │  SmartAttendance-backend │
+│  SmartAttendance-app    │  fetch (JSON + Bearer JWT)  │  SmartAttendance-backend │
 │  Expo / React Native    │ ──────────────────────────► │  Express                 │
 │  (iOS, Android, Web)    │                             │  + PostgreSQL            │
 └─────────────────────────┘                             └──────────────────────────┘
