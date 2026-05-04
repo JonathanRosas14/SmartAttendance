@@ -25,15 +25,20 @@ import ProfileStudentView from "./ProfileStudentView";
 
 import { Header, COLORS } from "../theme";
 
+// Componente contenedor principal para la experiencia del estudiante.
+// Recibe el usuario autenticado y callbacks para cerrar sesión/actualizar perfil.
 export default function EstudianteMainView({ usuario, onLogout, onPerfilActualizado }) {
-  // Pantalla actual que se está viendo (qr o historial)
+  // Estado que controla qué vista se muestra en el contenido principal.
+  // Valores esperados: "qr", "historial", "perfil".
   const [pantalla, setPantalla] = useState("qr");
+  // Controla la visibilidad de un menú contextual que usan vistas hijas.
   const [menuVisible, setMenuVisible] = useState(false);
 
-  // Función para renderizar la pantalla correcta según la tab seleccionada
+  // Decide dinámicamente qué componente renderizar según la pestaña actual.
   const renderPantalla = () => {
     switch (pantalla) {
       case "qr":
+        // Vista para escanear códigos QR de asistencia.
         return (
           <EscanearQRView 
             usuario={usuario}
@@ -44,6 +49,7 @@ export default function EstudianteMainView({ usuario, onLogout, onPerfilActualiz
           />
         );
       case "historial":
+        // Vista con el historial de asistencias del estudiante.
         return (
           <HistorialView 
             usuario={usuario}
@@ -54,15 +60,18 @@ export default function EstudianteMainView({ usuario, onLogout, onPerfilActualiz
           />
         );
       case "perfil":
+        // Vista de perfil/configuración del estudiante.
         return (
           <ProfileStudentView
             usuario={usuario}
             onLogout={onLogout}
             onPerfilActualizado={onPerfilActualizado}
+            // Al volver desde perfil, regresamos por defecto a la pestaña QR.
             onVolver={() => setPantalla("qr")}
           />
         );
       default:
+        // Fallback de seguridad: si el estado es inválido, mostramos QR.
         return (
           <EscanearQRView
             usuario={usuario}
@@ -76,7 +85,9 @@ export default function EstudianteMainView({ usuario, onLogout, onPerfilActualiz
   };
 
   return (
+    // Contenedor seguro que respeta zonas del dispositivo (notch, barra inferior).
     <SafeAreaView style={styles.safeArea}>
+      {/* Configura color y estilo de texto de la barra de estado del sistema */}
       <StatusBar backgroundColor={COLORS.card} barStyle="dark-content" />
 
       {/* Contenido de la pantalla actual */}
@@ -86,6 +97,7 @@ export default function EstudianteMainView({ usuario, onLogout, onPerfilActualiz
       <View style={styles.navBar}>
         <TouchableOpacity
           style={styles.navItem}
+          // Cambia a la vista de escaneo.
           onPress={() => setPantalla("qr")}
           activeOpacity={0.7}
         >
@@ -109,6 +121,7 @@ export default function EstudianteMainView({ usuario, onLogout, onPerfilActualiz
 
         <TouchableOpacity
           style={styles.navItem}
+          // Cambia a la vista de historial.
           onPress={() => setPantalla("historial")}
           activeOpacity={0.7}
         >

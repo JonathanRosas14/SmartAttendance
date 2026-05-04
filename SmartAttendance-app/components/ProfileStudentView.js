@@ -13,14 +13,19 @@ import {
 import { COLORS, Header } from "../theme";
 import { actualizarPerfilEstudianteAPI } from "../services/api";
 
+// Vista de edición del perfil del estudiante.
+// Permite actualizar datos básicos y contraseña opcional.
 export default function ProfileStudentView({ usuario, onLogout, onPerfilActualizado, onVolver }) {
+  // Estado local del menú superior y campos del formulario.
   const [menuVisible, setMenuVisible] = useState(false);
   const [nombre, setNombre] = useState(usuario?.nombre || "");
   const [celular, setCelular] = useState(usuario?.celular || "");
   const [correo, setCorreo] = useState(usuario?.correo || "");
   const [contrasena, setContrasena] = useState("");
+  // Estado de envío para deshabilitar acciones mientras guarda.
   const [cargando, setCargando] = useState(false);
 
+  // Ejecuta la llamada real al backend para persistir los cambios.
   const ejecutarGuardadoPerfil = async () => {
     setCargando(true);
     try {
@@ -38,6 +43,7 @@ export default function ProfileStudentView({ usuario, onLogout, onPerfilActualiz
       }
 
       if (onPerfilActualizado) {
+        // Actualiza el estado global/superior para refrescar datos en toda la app.
         onPerfilActualizado({ ...usuario, ...resultado.usuario });
       }
       setContrasena("");
@@ -49,6 +55,7 @@ export default function ProfileStudentView({ usuario, onLogout, onPerfilActualiz
     }
   };
 
+  // Valida formulario en cliente antes de mostrar confirmación y guardar.
   const handleGuardar = () => {
     if (!nombre.trim() || !celular.trim() || !correo.trim()) {
       Alert.alert("Validación", "Nombre, teléfono y correo son obligatorios.");
@@ -68,6 +75,7 @@ export default function ProfileStudentView({ usuario, onLogout, onPerfilActualiz
       "¿Deseas guardar los cambios del perfil?",
       [
         { text: "Cancelar", style: "cancel" },
+        // Solo si el usuario confirma se ejecuta el guardado en API.
         { text: "Guardar", onPress: ejecutarGuardadoPerfil },
       ]
     );
@@ -80,6 +88,7 @@ export default function ProfileStudentView({ usuario, onLogout, onPerfilActualiz
         menuVisible={menuVisible}
         setMenuVisible={setMenuVisible}
         onLogout={onLogout}
+        // En esta pantalla ya estamos en configuración/perfil.
         onSettings={() => {}}
       />
 
