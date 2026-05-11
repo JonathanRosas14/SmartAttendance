@@ -1,4 +1,4 @@
-# SmartAttendance
+# AttendGo
 
 Sistema para **gestionar asistencia** en contextos académicos: profesores administran clases, generan **códigos QR** de sesión y marcan asistencia manual; los estudiantes **escanean el QR** y consultan su **historial**. La solución está dividida en **aplicación móvil/web (Expo / React Native)** y **API REST (Node.js / Express)** con **PostgreSQL**.
 
@@ -40,16 +40,21 @@ Sistema para **gestionar asistencia** en contextos académicos: profesores admin
 ## Arquitectura
 
 ```
+┌─────────────────────────┐         HTTPS/HTTP          ┌──────────────────────────┐
+│  AttendGo-app    │  fetch (JSON + Bearer JWT)  │  AttendGo-backend │
+│  Expo / React Native    │ ──────────────────────────► │  Express                 │
+│  (iOS, Android, Web)    │                             │  + PostgreSQL            │
+└─────────────────────────┘                             └──────────────────────────┘
 ```
-
+ 
 - La **fuente de verdad** de usuarios, clases y asistencias es **PostgreSQL**, accedida solo desde el backend.
-- La app usa un cliente centralizado en `SmartAttendance-app/services/api.js` con base URL configurable (`EXPO_PUBLIC_API_URL`).
+- La app usa un cliente centralizado en `AttendGo-app/services/api.js` con base URL configurable (`EXPO_PUBLIC_API_URL`).
 
 ---
 
 ## Stack tecnológico
 
-### App (`SmartAttendance-app/`)
+### App (`AttendGo-app/`)
 
 | Tecnología | Uso |
 |------------|-----|
@@ -60,9 +65,9 @@ Sistema para **gestionar asistencia** en contextos académicos: profesores admin
 | [expo-device](https://docs.expo.dev/versions/latest/sdk/device/) | Información del dispositivo (identificador auxiliar en asistencia QR) |
 | [AsyncStorage](https://react-native-async-storage.github.io/async-storage/) | Almacenamiento local auxiliar (p. ej. limpieza de claves heredadas) |
 
-Versiones concretas: ver `SmartAttendance-app/package.json`.
+Versiones concretas: ver `AttendGo-app/package.json`.
 
-### Backend (`SmartAttendance-backend/`)
+### Backend (`AttendGo-backend/`)
 
 | Tecnología | Uso |
 |------------|-----|
@@ -79,11 +84,11 @@ Versiones concretas: ver `SmartAttendance-app/package.json`.
 ## Estructura del repositorio
 
 ```
-SmartAttendance/
+AttendGo/
 ├── README.md                 # Este documento
 ├── init.sql                  # Esquema SQL inicial (PostgreSQL)
 ├── package.json              # Dependencias mínimas a nivel raíz (si aplica)
-├── SmartAttendance-app/      # Cliente Expo / React Native
+├── AttendGo-app/      # Cliente Expo / React Native
 │   ├── App.js
 │   ├── index.js
 │   ├── components/           # Pantallas y vistas por rol
@@ -92,7 +97,7 @@ SmartAttendance/
 │   ├── models/               # Estado en memoria / compatibilidad (no sustituye al servidor)
 │   ├── utils/                # Storage, fechas, QR, exportación CSV, etc.
 │   └── theme/                # Colores y componentes de UI compartidos
-└── SmartAttendance-backend/  # API REST
+└── AttendGo-backend/  # API REST
     ├── Dockerfile
     ├── src/
     │   ├── app.js            # Entrada Express, montaje de rutas
@@ -117,11 +122,11 @@ SmartAttendance/
 
 ## Base de datos
 
-1. Crea una base de datos en PostgreSQL, por ejemplo `smartattendance`.
+1. Crea una base de datos en PostgreSQL, por ejemplo `AttendGo`.
 2. Ejecuta el script de esquema en la raíz del repo:
 
 ```bash
-psql -U TU_USUARIO -d smartattendance -f init.sql
+psql -U TU_USUARIO -d AttenGO -f init.sql
 ```
 
 El archivo `init.sql` define tablas entre otras:
@@ -138,11 +143,11 @@ Los usuarios se crean normalmente por **registro desde la app** o insertando fil
 ## Configuración y ejecución del backend
 
 ```bash
-cd SmartAttendance-backend
+cd AttendGo-backend
 npm install
 ```
 
-Crea un archivo **`.env`** en `SmartAttendance-backend/` (ver [Variables de entorno](#variables-de-entorno)).
+Crea un archivo **`.env`** en `AttendGo-backend/` (ver [Variables de entorno](#variables-de-entorno)).
 
 ```bash
 # Desarrollo (recarga con nodemon)
@@ -167,7 +172,7 @@ Respuesta esperada: JSON con `ok: true`.
 ## Configuración y ejecución de la app
 
 ```bash
-cd SmartAttendance-app
+cd AttendGo-app
 npm install
 npx expo start
 ```
@@ -186,7 +191,7 @@ antes de `expo start`, o usar un archivo `.env` compatible con Expo para variabl
 
 ## Variables de entorno
 
-### Backend (`SmartAttendance-backend/.env`)
+### Backend (`AttendGo-backend/.env`)
 
 | Variable | Descripción |
 |----------|-------------|
@@ -205,10 +210,10 @@ Ejemplo (ajusta valores):
 PORT=5000
 DB_HOST=localhost
 DB_PORT=5432
-DB_USER=smartattendance
-DB_PASSWORD=smartattendance123
-DB_NAME=smartattendance
-JWT_SECRET=cambia_esto_por_un_secreto_largo_y_aleatorio
+DB_USER=attendgo
+DB_PASSWORD=*************
+DB_NAME=attengo
+JWT_SECRET=*************
 JWT_EXPIRES_IN=7d
 ```
 
@@ -234,20 +239,20 @@ Prefijo base: `/api` (montado en el código como `app.use("/api/auth", ...)`, et
 | QR | `POST /api/qr/generar` | Generación de sesión QR con duración configurable desde el cliente. |
 | Salud | `GET /health` | Sin prefijo `/api` en `app.js` actual. |
 
-Para el detalle exacto de cada ruta y cuerpo JSON, revisa `SmartAttendance-backend/src/routes/` y los controladores correspondientes.
+Para el detalle exacto de cada ruta y cuerpo JSON, revisa `AttendGo-backend/src/routes/` y los controladores correspondientes.
 
 ---
 
 ## Docker (backend)
 
-En `SmartAttendance-backend/Dockerfile` se expone el puerto **5000** y el healthcheck llama a `http://localhost:5000/health`. Asegúrate de que el proceso escuche ese puerto (`PORT=5000` en el entorno del contenedor) y de que la app apunte a la misma URL accesible desde el host o red.
+En `AttendGo-backend/Dockerfile` se expone el puerto **5000** y el healthcheck llama a `http://localhost:5000/health`. Asegúrate de que el proceso escuche ese puerto (`PORT=5000` en el entorno del contenedor) y de que la app apunte a la misma URL accesible desde el host o red.
 
 Ejemplo genérico (ajusta nombres de red y variables):
 
 ```bash
-cd SmartAttendance-backend
-docker build -t smartattendance-api .
-docker run --env-file .env -p 5000:5000 smartattendance-api
+cd AttendGo-backend
+docker build -t attegond-api .
+docker run --env-file .env -p 5000:5000 attendgo-api
 ```
 
 La base de datos PostgreSQL suele ejecutarse en otro contenedor o servicio gestionado; el contenedor de la API debe poder resolver `DB_HOST`.

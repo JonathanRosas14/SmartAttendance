@@ -1,0 +1,578 @@
+// QRView.js
+// Pantalla para generar QR dinámicos de asistencia
+// El profesor selecciona una clase y presiona un botón para generar un nuevo QR
+// El QR incluye un token único y una hora de expiración (por defecto 60 segundos)
+// Los estudiantes escanearán este QR con sus celulares para registrar asistencia
+
+import React, { useState, useEffect, useRef, useCallback } from "react";
+import {
+  View,
+  Text,
+  TouchableOpacity,
+  StyleSheet,
+  ScrollView,
+  Alert,
+  Platform,
+  StatusBar,
+  SafeAreaView,
+  Modal,
+  ActivityIndicator,
+  Image,
+  AppState
+} from "react-native";
+
+import qr from "../assets/icons/qr.png";
+
+// Importamos las funciones para obtener clases y generar QR
+import {
+  obtenerClasesAPI,
+  generarQRAPI,
+} from "../services/api";
+
+import { Header, COLORS } from "../theme";
+
+// Intentamos importar la librería QR. Si no está instalada, el componente sigue funcionando
+let QRCode = null;
+try {
+  QRCode = require("react-native-qrcode-svg").default;
+} catch {
+  QRCode = null;
+}
+
+// Los QR expiran después de este tiempo (en segundos)
+const QR_DURACION_SEG = 60;
+
+export default function QRView({ usuario, setPantalla, onLogout }) {
+  const appState = useRef(AppState.currentState);
+  const [menuVisible, setMenuVisible] = useState(false);
+
+  // Clases disponibles
+  const [clases, setClases] = useState([]);
+  const [claseSeleccionada, setClaseSeleccionada] = useState(null);
+  const [dropdownVisible, setDropdownVisible] = useState(false);
+
+  // Estado del QR generado
+  const [qrData,      setQrData]      = useState(null);   // string JSON del QR
+  const [generando,   setGenerando]   = useState(false);
+  const [segundos,    setSegundos]    = useState(0);       // cuenta regresiva
+  const [expirado,    setExpirado]    = useState(false);
+
+  // ── Timer ─────────────────────────────────────────────────────────────────
+  const timerRef = useRef(null);
+
+  // ── Limpiar timer al desmontar ────────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, []);
+
+  // ── Limpiar UI states cuando la app se reanuda (AppState) ────────────────
+  useEffect(() => {
+    const subscription = AppState.addEventListener('change', handleAppStateChange);
+    return () => subscription.remove();
+  }, []);
+
+  const handleAppStateChange = (nextAppState) => {
+    if (appState.current.match(/inactive|background/) && nextAppState === 'active') {
+      // App ha reanudado - limpiar todos los estados UI
+      setMenuVisible(false);
+      setDropdownVisible(false);
+    }
+    appState.current = nextAppState;
+  };
+
+  // ✅ LIMPIAR ESTADO CUANDO EL COMPONENTE SE DESMONTA (ANDROID FIX)
+  useEffect(() => {
+    return () => {
+      setMenuVisible(false);
+      setDropdownVisible(false);
+      setQrData(null);
+      setExpirado(false);
+    };
+  }, []);
+
+  // ── Cargar clases al montar ───────────────────────────────────────────────
+  useEffect(() => {
+    const cargarClases = async () => {
+      try {
+        const resultado = await obtenerClasesAPI(usuario.token);
+        if (resultado && resultado.ok) {
+          const clases = resultado.clases || [];
+          setClases([...clases]);
+          if (clases.length > 0) {
+            setClaseSeleccionada(clases[0]);
+          }
+        } else if (resultado && Array.isArray(resultado)) {
+          setClases([...resultado]);
+          if (resultado.length > 0) {
+            setClaseSeleccionada(resultado[0]);
+          }
+        }
+      } catch (error) {
+        console.error('Error al cargar clases:', error);
+      }
+    };
+    cargarClases();
+  }, [usuario.token]);
+
+  // ── Generar QR ────────────────────────────────────────────────────────────
+  const handleGenerarQR = useCallback(async () => {
+    if (!claseSeleccionada) {
+      Alert.alert("Error", "Selecciona una clase primero.");
+      return;
+    }
+
+    setGenerando(true);
+
+    try {
+      const resultado = await generarQRAPI(claseSeleccionada.id, QR_DURACION_SEG, usuario.token);
+
+      if (!resultado || !resultado.ok) {
+        Alert.alert("❌ Error", resultado?.mensaje || "No se pudo generar el QR");
+        setGenerando(false);
+        return;
+      }
+
+      // Guardar el QR en estado
+      setQrData(resultado.qr || resultado.data);
+      setExpirado(false);
+      setSegundos(QR_DURACION_SEG);
+      setGenerando(false);
+
+      // Limpiar timer anterior si existe
+      if (timerRef.current) clearInterval(timerRef.current);
+
+      // Iniciar cuenta regresiva
+      timerRef.current = setInterval(() => {
+        setSegundos((prev) => {
+          if (prev <= 1) {
+            setExpirado(true);
+            if (timerRef.current) clearInterval(timerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+    } catch (error) {
+      console.error("Error al generar QR:", error);
+      Alert.alert("❌ Error", "Error al generar el QR: " + error.message);
+      setGenerando(false);
+    }
+  }, [claseSeleccionada, usuario.token]);
+
+  // ── Color del timer según tiempo restante ─────────────────────────────────
+  const timerColor =
+    segundos > 30 ? COLORS.green :
+    segundos > 10 ? COLORS.orange :
+    COLORS.red;
+
+  // ── Seleccionar clase ─────────────────────────────────────────────────────
+  const handleSeleccionarClase = (clase) => {
+    setClaseSeleccionada(clase);
+    setDropdownVisible(false);
+    // Limpiar QR anterior al cambiar de clase
+    if (timerRef.current) clearInterval(timerRef.current);
+    setQrData(null);
+    setExpirado(false);
+    setSegundos(0);
+  };
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // RENDER PRINCIPAL
+  // ─────────────────────────────────────────────────────────────────────────
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <StatusBar backgroundColor={COLORS.white} barStyle="dark-content" />
+
+      <Header 
+        menuVisible={menuVisible} 
+        setMenuVisible={setMenuVisible} 
+        onLogout={onLogout}
+        onSettings={() => setPantalla("perfil-profesor")}
+      />
+
+      {/* ── CONTENIDO ─────────────────────────────────────────────────── */}
+      <ScrollView
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+        keyboardShouldPersistTaps="handled"
+      >
+        {/* ── CARD PRINCIPAL ─────────────────────────────────────────── */}
+        <View style={styles.card}>
+          <Text style={styles.cardTitle}>Generar asistencia</Text>
+
+          {/* Selector de clase */}
+          <Text style={styles.cardLabel}>Seleccionar Clase</Text>
+          <TouchableOpacity
+            style={styles.dropdown}
+            onPress={() => setDropdownVisible(true)}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.dropdownText}>
+              {claseSeleccionada
+                ? claseSeleccionada.nombre
+                : "Sin clases creadas"}
+            </Text>
+            <Text style={styles.dropdownArrow}>⌄</Text>
+          </TouchableOpacity>
+
+          {/* Botón Generar QR */}
+          <TouchableOpacity
+            style={[styles.btnGenerar, generando && styles.btnGenerandoDisabled]}
+            onPress={handleGenerarQR}
+            activeOpacity={0.85}
+            disabled={generando}
+            accessibilityLabel="Generar QR"
+          >
+            {generando ? (
+              <ActivityIndicator color={COLORS.white} size="small" />
+            ) : (
+              <>
+                <Image source={qr} style={{ width: 24, height: 24, tintColor: COLORS.white }} />
+                <Text style={styles.btnGenerarText}>GENERAR QR</Text>
+              </>
+            )}
+          </TouchableOpacity>
+
+          {/* ── ÁREA DEL QR ──────────────────────────────────────────── */}
+          {qrData && !expirado && (
+            <View style={styles.qrArea}>
+              {/* Imagen QR */}
+              <View style={styles.qrImageWrap}>
+                {QRCode ? (
+                  <QRCode
+                    value={qrData}
+                    size={200}
+                    color={COLORS.primary}
+                    backgroundColor={COLORS.white}
+                  />
+                ) : (
+                  /* Fallback si react-native-qrcode-svg no está instalado */
+                  <View style={styles.qrFallback}>
+                    <Text style={styles.qrFallbackIcon}>⊞</Text>
+                    <Text style={styles.qrFallbackTitle}>QR Generado</Text>
+                    <Text style={styles.qrFallbackSub}>
+                      Instala react-native-qrcode-svg{"\n"}para ver la imagen
+                    </Text>
+                  </View>
+                )}
+              </View>
+
+              {/* Cuenta regresiva */}
+              <View style={styles.timerWrap}>
+                <Text style={styles.timerLabel}>Expira en</Text>
+                <Text style={[styles.timerSegundos, { color: timerColor }]}>
+                  {segundos}s
+                </Text>
+              </View>
+
+              {/* Barra de progreso */}
+              <View style={styles.progressBar}>
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      width: `${(segundos / QR_DURACION_SEG) * 100}%`,
+                      backgroundColor: timerColor,
+                    },
+                  ]}
+                />
+              </View>
+
+              <Text style={styles.qrClaseNombre}>
+                {claseSeleccionada?.nombre}
+              </Text>
+            </View>
+          )}
+
+          {/* ── QR EXPIRADO ───────────────────────────────────────────── */}
+          {expirado && (
+            <View style={styles.expiradoWrap}>
+              <Text style={styles.expiradoTitulo}>QR Expirado</Text>
+              <Text style={styles.expiradoSub}>
+                Genera un nuevo QR para continuar
+              </Text>
+              <TouchableOpacity
+                style={styles.btnRegenerar}
+                onPress={handleGenerarQR}
+                activeOpacity={0.85}
+              >
+                <Text style={styles.btnRegenerarText}>REGENERAR QR</Text>
+              </TouchableOpacity>
+            </View>
+          )}
+        </View>
+      </ScrollView>
+
+      {/* ── MODAL DROPDOWN ────────────────────────────────────────────── */}
+      <Modal
+        visible={dropdownVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setDropdownVisible(false)}
+      >
+        <TouchableOpacity
+          style={styles.modalOverlay}
+          activeOpacity={1}
+          onPress={() => setDropdownVisible(false)}
+        >
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Seleccionar Clase</Text>
+            {clases.length === 0 ? (
+              <Text style={styles.modalEmpty}>No hay clases creadas aún.</Text>
+            ) : (
+              clases.map((clase) => (
+                <TouchableOpacity
+                  key={clase.id}
+                  style={[
+                    styles.modalOption,
+                    claseSeleccionada?.id === clase.id &&
+                      styles.modalOptionActive,
+                  ]}
+                  onPress={() => handleSeleccionarClase(clase)}
+                  activeOpacity={0.7}
+                >
+                  <Text
+                    style={[
+                      styles.modalOptionText,
+                      claseSeleccionada?.id === clase.id &&
+                        styles.modalOptionTextActive,
+                    ]}
+                  >
+                    {clase.nombre}
+                  </Text>
+                  <Text style={styles.modalOptionHora}>
+                    {clase.horaInicio} — {clase.horaFin}
+                  </Text>
+                </TouchableOpacity>
+              ))
+            )}
+          </View>
+        </TouchableOpacity>
+      </Modal>
+    </SafeAreaView>
+  );
+}
+
+// ─── Estilos ──────────────────────────────────────────────────────────────────
+const styles = StyleSheet.create({
+
+  safeArea: {
+    flex: 1,
+    backgroundColor: COLORS.white,
+  },
+  scrollView: {
+    flex: 1,
+    backgroundColor: COLORS.background,
+  },
+  scrollContent: {
+    paddingHorizontal: 16,
+    paddingTop: 24,
+    paddingBottom: 180,
+  },
+
+  // Header
+  // Card principal
+  card: {
+    backgroundColor: COLORS.card,
+    borderRadius: 16,
+    padding: 22,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 3,
+  },
+  cardTitle: {
+    fontSize: 22,
+    fontWeight: "800",
+    color: COLORS.text,
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  cardLabel: {
+    fontSize: 12,
+    color: COLORS.textMuted,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+
+  // Dropdown
+  dropdown: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    paddingHorizontal: 14,
+    paddingVertical: 13,
+    marginBottom: 20,
+  },
+  dropdownText:  { fontSize: 15, color: COLORS.text, flex: 1 },
+  dropdownArrow: { fontSize: 18, color: COLORS.textMuted },
+
+  // Botón generar
+  btnGenerar: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 12,
+    paddingVertical: 16,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 10,
+  },
+  btnGenerandoDisabled: {
+    opacity: 0.7,
+  },
+  btnGenerarText: {
+    color: COLORS.white, fontWeight: "700",
+    fontSize: 14, letterSpacing: 1.5,
+  },
+
+  // Área del QR
+  qrArea: {
+    alignItems: "center",
+    marginTop: 24,
+  },
+  qrImageWrap: {
+    padding: 16,
+    backgroundColor: COLORS.white,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: COLORS.border,
+    shadowColor: "#000",
+    shadowOpacity: 0.06,
+    shadowRadius: 8,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 2,
+    marginBottom: 16,
+  },
+
+  // Fallback cuando no está react-native-qrcode-svg
+  qrFallback: {
+    width: 200, height: 200,
+    alignItems: "center", justifyContent: "center",
+    backgroundColor: COLORS.iconBg,
+    borderRadius: 12,
+  },
+  qrFallbackIcon:  { fontSize: 48, marginBottom: 10 },
+  qrFallbackTitle: {
+    fontSize: 16, fontWeight: "700",
+    color: COLORS.primary, marginBottom: 6,
+  },
+  qrFallbackSub: {
+    fontSize: 11, color: COLORS.textMuted,
+    textAlign: "center", lineHeight: 16,
+  },
+
+  // Timer
+  timerWrap: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 8,
+  },
+  timerLabel: {
+    fontSize: 13, color: COLORS.textMuted, fontWeight: "500",
+  },
+  timerSegundos: {
+    fontSize: 22, fontWeight: "800",
+  },
+
+  // Barra de progreso
+  progressBar: {
+    width: "100%",
+    height: 6,
+    backgroundColor: COLORS.border,
+    borderRadius: 3,
+    overflow: "hidden",
+    marginBottom: 12,
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 3,
+  },
+
+  qrClaseNombre: {
+    fontSize: 13, color: COLORS.textMuted,
+    fontWeight: "600", textAlign: "center",
+  },
+
+  // QR Expirado
+  expiradoWrap: {
+    alignItems: "center",
+    marginTop: 24,
+    paddingVertical: 20,
+    backgroundColor: COLORS.inputBg,
+    borderRadius: 14,
+  },
+  expiradoIcon:   { fontSize: 40, marginBottom: 10 },
+  expiradoTitulo: {
+    fontSize: 17, fontWeight: "700",
+    color: COLORS.red, marginBottom: 6,
+  },
+  expiradoSub: {
+    fontSize: 13, color: COLORS.textMuted,
+    marginBottom: 16, textAlign: "center",
+  },
+  btnRegenerar: {
+    backgroundColor: COLORS.primary,
+    borderRadius: 10,
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+  },
+  btnRegenerarText: {
+    color: COLORS.white, fontWeight: "700",
+    fontSize: 13, letterSpacing: 1,
+  },
+
+  // Modal dropdown
+  modalOverlay: {
+    flex: 1, backgroundColor: "rgba(0,0,0,0.4)",
+    justifyContent: "center", alignItems: "center", padding: 24,
+  },
+  modalContent: {
+    backgroundColor: COLORS.white, borderRadius: 16,
+    padding: 20, width: "100%",
+  },
+  modalTitle: {
+    fontSize: 16, fontWeight: "700",
+    color: COLORS.text, marginBottom: 14,
+  },
+  modalEmpty: {
+    fontSize: 14, color: COLORS.textMuted,
+    textAlign: "center", paddingVertical: 20,
+  },
+  modalOption: {
+    paddingVertical: 12, paddingHorizontal: 10,
+    borderRadius: 8, marginBottom: 4,
+  },
+  modalOptionActive:     { backgroundColor: COLORS.iconBg },
+  modalOptionText:       { fontSize: 15, color: COLORS.text, fontWeight: "600" },
+  modalOptionTextActive: { color: COLORS.primary },
+  modalOptionHora:       { fontSize: 11, color: COLORS.textMuted, marginTop: 2 },
+
+  // Bottom nav
+  navBar: {
+    position: 'absolute',
+    bottom: 0,
+    left: 0,
+    right: 0,
+    flexDirection: "row",
+    backgroundColor: COLORS.white,
+    borderTopWidth: 1, borderTopColor: COLORS.navBorder,
+    paddingTop: 8,
+    paddingBottom: Platform.OS === "ios" ? 20 : 10,
+    paddingHorizontal: 4,
+  },
+  navItem:        { flex: 1, alignItems: "center", justifyContent: "center" },
+  navIcon:        { fontSize: 20, marginBottom: 2, color: COLORS.textMuted },
+  navIconActive:  { color: COLORS.primary },
+  navLabel:       { fontSize: 9, fontWeight: "600", color: COLORS.textMuted, letterSpacing: 0.6 },
+  navLabelActive: { color: COLORS.primary },
+});

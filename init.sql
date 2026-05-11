@@ -48,10 +48,12 @@ CREATE TABLE IF NOT EXISTS asistencias (
   clase_id VARCHAR(50) NOT NULL REFERENCES clases(id) ON DELETE CASCADE,
   fecha DATE NOT NULL,
   hora TIME NOT NULL,
+  asistio BOOLEAN DEFAULT TRUE,
   tipo VARCHAR(10) CHECK (tipo IN ('qr', 'manual')) NOT NULL,
   mac_address VARCHAR(50),
   verificado BOOLEAN DEFAULT FALSE,
-  created_at TIMESTAMP DEFAULT NOW()
+  created_at TIMESTAMP DEFAULT NOW(),
+  UNIQUE(estudiante_id, clase_id, fecha)
 );
 
 -- Tabla de logs de errores
