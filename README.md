@@ -40,11 +40,6 @@ Sistema para **gestionar asistencia** en contextos académicos: profesores admin
 ## Arquitectura
 
 ```
-┌─────────────────────────┐         HTTPS/HTTP          ┌──────────────────────────┐
-│  SmartAttendance-app    │  fetch (JSON + Bearer JWT)  │  SmartAttendance-backend │
-│  Expo / React Native    │ ──────────────────────────► │  Express                 │
-│  (iOS, Android, Web)    │                             │  + PostgreSQL            │
-└─────────────────────────┘                             └──────────────────────────┘
 ```
 
 - La **fuente de verdad** de usuarios, clases y asistencias es **PostgreSQL**, accedida solo desde el backend.
