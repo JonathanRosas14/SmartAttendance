@@ -23,7 +23,8 @@ import school from "../assets/icons/school.png";
 import teacher from "../assets/icons/teacher.png";
 import fingerprint from "../assets/icons/fingerprint.png";
 import verified from "../assets/icons/verified.png";
-import auction from "../assets/icons/auction.png";
+import logo from "../assets/icon.png"
+import auction from "../assets/icons/auction.png"
 
 // Importamos la función login del API para validar credenciales contra la BD
 import { loginAPI } from "../services/api";
@@ -98,7 +99,7 @@ export default function LoginView({ onLoginExitoso, onIrAlRegistro, rolInicial }
         >
           <View style={styles.logoArea}>
             <View style={styles.logoWrap}>
-              <Text style={styles.logoIcon}>🏛</Text>
+              <Image source={logo} style={{width: 80, height: 80}} />
             </View>
             <Text style={styles.appName}>AttendGo</Text>
             <Text style={styles.appSubtitle}>Acceso Institucional</Text>
@@ -252,21 +253,7 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 32,
   },
-  logoWrap: {
-    width: 80,
-    height: 80,
-    borderRadius: 20,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 16,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  logoIcon: { fontSize: 36 },
+
   appName: {
     fontSize: 28,
     fontWeight: "800",

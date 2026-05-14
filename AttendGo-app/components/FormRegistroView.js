@@ -16,7 +16,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  Image
 } from "react-native";
+
+import logo from "../assets/icon.png"
 
 // Importamos las funciones de API para registrar en la BD
 import {
@@ -146,7 +149,7 @@ export default function FormRegistroView({ rol, onRegistroExitoso, onVolverLogin
       {/* ── HEADER ──────────────────────────────────────────────── */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
-          <Text style={styles.headerIcon}>🏛</Text>
+          <Image source={logo} style={{width: 30, height: 30}} />
           <Text style={styles.headerTitle}>AttendGo</Text>
         </View>
         <View style={styles.avatarWrap}>

@@ -27,7 +27,7 @@ function generarCSV(estudiantesClase, asistenciasClase, nombreClase) {
       estudiante.celular,
       numeroSerie,
       asistio ? 'Sí' : '',
-      asistio ? '' : 'Sí',
+      asistio ? '' : 'No',
     ];
   });
 
