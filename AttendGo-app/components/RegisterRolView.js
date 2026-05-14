@@ -16,6 +16,7 @@ import {
 
 import teacher from "../assets/icons/teacher.png";
 import school from "../assets/icons/school.png";
+import logo from "../assets/icon.png"
 
 const COLORS = {
   primary:    "#1A3A6B",
@@ -42,7 +43,7 @@ export default function RegisterRolView({ onRegistroExitoso, onVolverLogin }) {
         {/* Encabezado con logo y título */}
         <View style={styles.headerArea}>
           <View style={styles.logoWrap}>
-            <Text style={styles.logoIcon}>🏛</Text>
+            <Image source={logo} style={{width: 80, height: 80}} />
           </View>
           <Text style={styles.titulo}>Crear una cuenta</Text>
         </View>
@@ -121,21 +122,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 36,
   },
-  logoWrap: {
-    width: 72,
-    height: 72,
-    borderRadius: 18,
-    backgroundColor: COLORS.primary,
-    alignItems: "center",
-    justifyContent: "center",
-    marginBottom: 20,
-    shadowColor: COLORS.primary,
-    shadowOpacity: 0.3,
-    shadowRadius: 10,
-    shadowOffset: { width: 0, height: 4 },
-    elevation: 6,
-  },
-  logoIcon: { fontSize: 32 },
   titulo: {
     fontSize: 30,
     fontWeight: "800",
